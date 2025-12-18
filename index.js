@@ -5,6 +5,7 @@ import cors from "cors";
 import mealRoutes from "./routes/mealRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
+import budgetRoutes from "./routes/budgetRoutes.js";
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use('/api/meals', mealRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/budget', budgetRoutes);
 
 // Basic Route
 app.get("/api/health", (req, res) => {

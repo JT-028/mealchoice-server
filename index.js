@@ -14,6 +14,7 @@ import budgetRoutes from "./routes/budgetRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import settingsRoutes from "./routes/settingsRoutes.js";
 import Message from "./models/Message.js";
 import Conversation from "./models/Conversation.js";
 
@@ -51,6 +52,7 @@ app.use('/api/budget', budgetRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Basic Route
 app.get("/api/health", (req, res) => {

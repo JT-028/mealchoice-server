@@ -23,6 +23,11 @@ const userSchema = new mongoose.Schema({
     minlength: [6, "Password must be at least 6 characters"],
     select: false // Don't include password in queries by default
   },
+  phone: {
+    type: String,
+    trim: true,
+    default: null
+  },
   role: {
     type: String,
     enum: ["customer", "seller", "admin"],
@@ -33,6 +38,29 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ["San Nicolas Market", "Pampanga Market", null],
     default: null
+  },
+  storeHours: {
+    open: { type: String, default: "06:00" },
+    close: { type: String, default: "18:00" }
+  },
+  paymentQR: {
+    type: String,
+    default: null
+  },
+  // Notification preferences
+  notifyNewOrders: {
+    type: Boolean,
+    default: true
+  },
+  notifyLowStock: {
+    type: Boolean,
+    default: true
+  },
+  // Theme preference
+  theme: {
+    type: String,
+    enum: ["light", "dark", "system"],
+    default: "system"
   },
   isActive: {
     type: Boolean,

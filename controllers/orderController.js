@@ -1,6 +1,9 @@
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import fs from "fs";
+import User from "../models/User.js";
+import { emitLowStockNotification } from "../utils/socket.js";
+import { sendLowStockEmail } from "../utils/sendEmail.js";
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -9,7 +12,7 @@ export const createOrder = async (req, res) => {
   try {
     // If using FormData, items might be a JSON string
     let { items, notes } = req.body;
-    
+
     if (typeof items === 'string') {
       try {
         items = JSON.parse(items);
@@ -34,7 +37,7 @@ export const createOrder = async (req, res) => {
 
     for (const item of items) {
       const product = await Product.findById(item.productId).populate("seller");
-      
+
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -50,7 +53,7 @@ export const createOrder = async (req, res) => {
       }
 
       const sellerId = product.seller._id.toString();
-      
+
       if (!ordersBySeller[sellerId]) {
         ordersBySeller[sellerId] = {
           seller: product.seller._id,
@@ -71,7 +74,7 @@ export const createOrder = async (req, res) => {
       });
 
       ordersBySeller[sellerId].total += product.price * item.quantity;
-      
+
       // Check for file upload for this seller
       // Field name convention: proof_{sellerId}
       if (req.files) {
@@ -84,6 +87,27 @@ export const createOrder = async (req, res) => {
       // Reduce product quantity
       product.quantity -= item.quantity;
       await product.save();
+
+      // Check if product is now low on stock
+      if (product.quantity <= product.lowStockThreshold && product.quantity > 0) {
+        // Emit real-time notification to seller
+        emitLowStockNotification(sellerId, product);
+
+        // Also send email notification
+        try {
+          const seller = await User.findById(sellerId);
+          if (seller && seller.email) {
+            await sendLowStockEmail({
+              to: seller.email,
+              productName: product.name,
+              currentStock: product.quantity,
+              threshold: product.lowStockThreshold
+            });
+          }
+        } catch (emailError) {
+          console.error("Failed to send low stock email:", emailError);
+        }
+      }
     }
 
     // Create orders for each seller
@@ -91,7 +115,7 @@ export const createOrder = async (req, res) => {
 
     for (const sellerId in ordersBySeller) {
       const orderData = ordersBySeller[sellerId];
-      
+
       const order = await Order.create({
         buyer: req.user._id,
         seller: orderData.seller,
@@ -155,7 +179,7 @@ export const getMyOrders = async (req, res) => {
 export const getSellerOrders = async (req, res) => {
   try {
     const { status } = req.query;
-    
+
     const query = { seller: req.user._id };
     if (status && status !== "all") {
       query.status = status;
@@ -205,7 +229,7 @@ export const getSellerOrders = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { status, note } = req.body;
-    
+
     const validStatuses = ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({

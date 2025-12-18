@@ -1,6 +1,8 @@
+import crypto from "crypto";
 import User from "../models/User.js";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
+import { sendSellerWelcomeEmail } from "../utils/sendEmail.js";
 
 // @desc    Get admin dashboard stats
 // @route   GET /api/admin/stats
@@ -23,15 +25,15 @@ export const getStats = async (req, res) => {
     const totalRevenue = revenueAgg[0]?.total || 0;
 
     // Sellers by market
-    const sanNicolasSellers = await User.countDocuments({ 
-      role: "seller", 
+    const sanNicolasSellers = await User.countDocuments({
+      role: "seller",
       marketLocation: "San Nicolas Market",
-      isVerified: true 
+      isVerified: true
     });
-    const pampangaSellers = await User.countDocuments({ 
-      role: "seller", 
+    const pampangaSellers = await User.countDocuments({
+      role: "seller",
       marketLocation: "Pampanga Market",
-      isVerified: true 
+      isVerified: true
     });
 
     res.json({
@@ -89,9 +91,9 @@ export const getPendingSellers = async (req, res) => {
 export const getAllSellers = async (req, res) => {
   try {
     const { verified, market, active } = req.query;
-    
+
     const query = { role: "seller" };
-    
+
     if (verified === "true") query.isVerified = true;
     if (verified === "false") query.isVerified = false;
     if (market) query.marketLocation = market;
@@ -297,6 +299,93 @@ export const rejectSeller = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error"
+    });
+  }
+};
+
+// @desc    Create new seller account (admin)
+// @route   POST /api/admin/sellers
+// @access  Private (Admin)
+export const createSeller = async (req, res) => {
+  try {
+    const { name, email, marketLocation } = req.body;
+
+    // Validation
+    if (!name || !email || !marketLocation) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email, and market location are required"
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered"
+      });
+    }
+
+    // Generate temporary password (8 chars)
+    const tempPassword = crypto.randomBytes(4).toString("hex");
+
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Create seller account
+    const seller = await User.create({
+      name,
+      email,
+      password: tempPassword,
+      role: "seller",
+      marketLocation,
+      isVerified: false,
+      isEmailVerified: false,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: verificationExpires,
+      mustChangePassword: true
+    });
+
+    // Send welcome email
+    try {
+      await sendSellerWelcomeEmail({
+        to: email,
+        name,
+        tempPassword,
+        verificationToken
+      });
+    } catch (emailError) {
+      console.error("Failed to send welcome email:", emailError);
+      // Don't fail the request, seller is created
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "Seller account created. Verification email sent.",
+      seller: {
+        _id: seller._id,
+        name: seller.name,
+        email: seller.email,
+        marketLocation: seller.marketLocation,
+        isVerified: seller.isVerified
+      }
+    });
+  } catch (error) {
+    console.error("Create seller error:", error);
+
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: messages[0]
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Server error creating seller"
     });
   }
 };

@@ -37,6 +37,20 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  // Seller verification (admin approval)
+  isVerified: {
+    type: Boolean,
+    default: true // Customers are auto-verified, sellers will be set to false
+  },
+  verifiedAt: {
+    type: Date,
+    default: null
+  },
+  verifiedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
   }
 }, {
   timestamps: true

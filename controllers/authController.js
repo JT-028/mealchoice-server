@@ -32,12 +32,16 @@ export const register = async (req, res) => {
     const allowedRoles = ["customer", "seller"];
     const userRole = allowedRoles.includes(role) ? role : "customer";
 
+    // Sellers need admin verification before they can access seller features
+    const isVerified = userRole === "seller" ? false : true;
+
     // Create user
     const user = await User.create({
       name,
       email,
       password,
-      role: userRole
+      role: userRole,
+      isVerified
     });
 
     // Generate token
@@ -45,13 +49,16 @@ export const register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Registration successful",
+      message: userRole === "seller" 
+        ? "Registration successful. Your account is pending admin verification."
+        : "Registration successful",
       token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        isVerified: user.isVerified
       }
     });
   } catch (error) {
@@ -128,7 +135,8 @@ export const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        marketLocation: user.marketLocation
+        marketLocation: user.marketLocation,
+        isVerified: user.isVerified
       }
     });
   } catch (error) {
@@ -162,6 +170,7 @@ export const getProfile = async (req, res) => {
         email: user.email,
         role: user.role,
         marketLocation: user.marketLocation,
+        isVerified: user.isVerified,
         createdAt: user.createdAt
       }
     });

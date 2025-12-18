@@ -51,7 +51,8 @@ export const createOrder = async (req, res) => {
         name: product.name,
         price: product.price,
         quantity: item.quantity,
-        unit: product.unit
+        unit: product.unit,
+        image: product.image
       });
 
       ordersBySeller[sellerId].total += product.price * item.quantity;

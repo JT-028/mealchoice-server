@@ -22,6 +22,10 @@ const orderItemSchema = new mongoose.Schema({
   unit: {
     type: String,
     required: true
+  },
+  image: {
+    type: String,
+    default: null
   }
 });
 

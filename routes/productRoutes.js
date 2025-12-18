@@ -6,7 +6,7 @@ import {
   getProduct,
   updateProduct,
   deleteProduct,
-  getVerifiedSellers
+  getVerifiedSellers,
   uploadImage
 } from "../controllers/productController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";

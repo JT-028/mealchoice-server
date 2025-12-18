@@ -6,6 +6,7 @@ import mealRoutes from "./routes/mealRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import budgetRoutes from "./routes/budgetRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use('/api/meals', mealRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/budget', budgetRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Basic Route
 app.get("/api/health", (req, res) => {

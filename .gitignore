@@ -17,6 +17,7 @@ Thumbs.db
 # VS Code
 .vscode/
 
+uploads/
 # Build/Coverage (optional but standard)
 dist/
 coverage/

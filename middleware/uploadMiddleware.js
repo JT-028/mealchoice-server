@@ -68,5 +68,28 @@ export const uploadQRImage = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
+// Receipt image storage
+const receiptUploadsDir = path.join(__dirname, "..", "uploads", "receipts");
+if (!fs.existsSync(receiptUploadsDir)) {
+  fs.mkdirSync(receiptUploadsDir, { recursive: true });
+}
+
+const receiptStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, receiptUploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `receipt-${uniqueSuffix}${ext}`);
+  }
+});
+
+export const uploadReceiptImage = multer({
+  storage: receiptStorage,
+  fileFilter: imageFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
 export default uploadProductImage;
 

@@ -1,14 +1,28 @@
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
+import fs from "fs";
 
 // @desc    Create new order
 // @route   POST /api/orders
 // @access  Private (Customer)
 export const createOrder = async (req, res) => {
   try {
-    const { items, notes } = req.body;
+    // If using FormData, items might be a JSON string
+    let { items, notes } = req.body;
+    
+    if (typeof items === 'string') {
+      try {
+        items = JSON.parse(items);
+      } catch (e) {
+        return res.status(400).json({ success: false, message: "Invalid items format" });
+      }
+    }
 
     if (!items || items.length === 0) {
+      // Clean up uploaded files if error
+      if (req.files) {
+        req.files.forEach(file => fs.unlinkSync(file.path));
+      }
       return res.status(400).json({
         success: false,
         message: "Order must contain at least one item"
@@ -42,7 +56,8 @@ export const createOrder = async (req, res) => {
           seller: product.seller._id,
           marketLocation: product.marketLocation,
           items: [],
-          total: 0
+          total: 0,
+          paymentProof: null
         };
       }
 
@@ -56,6 +71,15 @@ export const createOrder = async (req, res) => {
       });
 
       ordersBySeller[sellerId].total += product.price * item.quantity;
+      
+      // Check for file upload for this seller
+      // Field name convention: proof_{sellerId}
+      if (req.files) {
+        const proofFile = req.files.find(f => f.fieldname === `proof_${sellerId}`);
+        if (proofFile) {
+          ordersBySeller[sellerId].paymentProof = `/uploads/receipts/${proofFile.filename}`;
+        }
+      }
 
       // Reduce product quantity
       product.quantity -= item.quantity;
@@ -74,7 +98,8 @@ export const createOrder = async (req, res) => {
         items: orderData.items,
         total: orderData.total,
         marketLocation: orderData.marketLocation,
-        notes
+        notes,
+        paymentProof: orderData.paymentProof
       });
 
       createdOrders.push(order);
@@ -87,12 +112,19 @@ export const createOrder = async (req, res) => {
     });
   } catch (error) {
     console.error("Create order error:", error);
+    // Clean up files on error
+    if (req.files) {
+      req.files.forEach(file => {
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      });
+    }
     res.status(500).json({
       success: false,
       message: "Server error creating order"
     });
   }
 };
+
 
 // @desc    Get customer's orders
 // @route   GET /api/orders/my-orders
@@ -218,6 +250,52 @@ export const updateOrderStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error updating order"
+    });
+  }
+};
+
+// @desc    Verify payment
+// @route   PUT /api/orders/:id/payment
+// @access  Private (Seller)
+export const verifyPayment = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
+    // Check ownership
+    if (order.seller.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to update this order"
+      });
+    }
+
+    order.isPaymentVerified = true;
+    order.status = "confirmed";
+    order.statusHistory.push({
+      status: "confirmed",
+      timestamp: new Date(),
+      note: "Payment verified and order confirmed by seller"
+    });
+
+    await order.save();
+
+    res.json({
+      success: true,
+      message: "Payment verified",
+      order
+    });
+  } catch (error) {
+    console.error("Verify payment error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error verifying payment"
     });
   }
 };

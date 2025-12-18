@@ -328,3 +328,32 @@ export const getSettings = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error fetching settings" });
   }
 };
+
+// @desc    Get public info for multiple sellers
+// @route   POST /api/settings/sellers-info
+// @access  Private
+export const getSellersInfo = async (req, res) => {
+  try {
+    const { sellerIds } = req.body;
+
+    if (!Array.isArray(sellerIds)) {
+      return res.status(400).json({
+        success: false,
+        message: "sellerIds must be an array"
+      });
+    }
+
+    const sellers = await User.find({
+      _id: { $in: sellerIds },
+      role: "seller"
+    }).select("name marketLocation paymentQR");
+
+    res.json({
+      success: true,
+      sellers
+    });
+  } catch (error) {
+    console.error("Get sellers info error:", error);
+    res.status(500).json({ success: false, message: "Server error fetching sellers info" });
+  }
+};

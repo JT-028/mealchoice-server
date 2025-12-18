@@ -1,4 +1,11 @@
 import Product from "../models/Product.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // @desc    Create new product
 // @route   POST /api/products
@@ -7,13 +14,13 @@ export const createProduct = async (req, res) => {
   try {
     const { name, description, price, quantity, unit, category, isAvailable, image, lowStockThreshold } = req.body;
 
-    // Use seller's market location or allow override
-    const marketLocation = req.body.marketLocation || req.user.marketLocation;
+    // Use seller's market location from their profile
+    const marketLocation = req.user.marketLocation;
 
     if (!marketLocation) {
       return res.status(400).json({
         success: false,
-        message: "Market location is required. Please set your market location in your profile."
+        message: "Market location not found. Please set your market location in your profile."
       });
     }
 
@@ -232,6 +239,14 @@ export const deleteProduct = async (req, res) => {
       });
     }
 
+    // Delete image file if exists
+    if (product.image) {
+      const imagePath = path.join(__dirname, "..", product.image);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+
     await product.deleteOne();
 
     res.json({
@@ -246,3 +261,72 @@ export const deleteProduct = async (req, res) => {
     });
   }
 };
+
+// @desc    Upload product image
+// @route   POST /api/products/:id/image
+// @access  Private (Seller - owner only)
+export const uploadImage = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      // Delete uploaded file if product not found
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    // Check ownership
+    if (product.seller.toString() !== req.user._id.toString()) {
+      // Delete uploaded file if not authorized
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to update this product"
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload an image file"
+      });
+    }
+
+    // Delete old image if exists
+    if (product.image) {
+      const oldImagePath = path.join(__dirname, "..", product.image);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Save new image path (relative path for URL)
+    product.image = `/uploads/products/${req.file.filename}`;
+    await product.save();
+
+    res.json({
+      success: true,
+      message: "Image uploaded successfully",
+      image: product.image,
+      product
+    });
+  } catch (error) {
+    console.error("Upload image error:", error);
+    // Clean up uploaded file on error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({
+      success: false,
+      message: "Server error uploading image"
+    });
+  }
+};
+

@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
 import mealRoutes from "./routes/mealRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/meals', mealRoutes);
+app.use('/api/auth', authRoutes);
 
 // Basic Route
 app.get("/api/health", (req, res) => {

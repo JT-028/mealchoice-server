@@ -1,4 +1,29 @@
 import Product from "../models/Product.js";
+import User from "../models/User.js";
+
+// @desc    Get all verified sellers
+// @route   GET /api/products/sellers
+// @access  Private (Customer only)
+export const getVerifiedSellers = async (req, res) => {
+  try {
+    const sellers = await User.find({
+      role: "seller",
+      isVerified: true,
+      isActive: true
+    }).select("name email marketLocation");
+
+    res.json({
+      success: true,
+      sellers
+    });
+  } catch (error) {
+    console.error("Get verified sellers error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error fetching sellers"
+    });
+  }
+};
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -45,7 +70,7 @@ export const createProduct = async (req, res) => {
     });
   } catch (error) {
     console.error("Create product error:", error);
-    
+
     if (error.name === "ValidationError") {
       const messages = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({
@@ -182,7 +207,7 @@ export const updateProduct = async (req, res) => {
 
     // Update fields
     const allowedUpdates = [
-      "name", "description", "price", "quantity", "unit", 
+      "name", "description", "price", "quantity", "unit",
       "category", "isAvailable", "image", "lowStockThreshold"
     ];
 
@@ -201,7 +226,7 @@ export const updateProduct = async (req, res) => {
     });
   } catch (error) {
     console.error("Update product error:", error);
-    
+
     if (error.name === "ValidationError") {
       const messages = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({

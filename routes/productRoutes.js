@@ -6,6 +6,7 @@ import {
   getProduct,
   updateProduct,
   deleteProduct,
+  getVerifiedSellers
   uploadImage
 } from "../controllers/productController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
@@ -16,6 +17,9 @@ const router = express.Router();
 // Public routes
 router.get("/", getAllProducts);
 router.get("/:id", getProduct);
+
+// Protected routes (Customer)
+router.get("/sellers/list", protect, authorize("customer"), getVerifiedSellers);
 
 // Protected routes (Seller only)
 router.get("/seller/my-products", protect, authorize("seller"), getSellerProducts);

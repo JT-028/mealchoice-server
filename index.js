@@ -37,6 +37,10 @@ const io = new Server(httpServer, {
   }
 });
 
+// Initialize shared socket instance
+import { setIO } from "./utils/socket.js";
+setIO(io);
+
 // Middleware
 app.use(cors());
 app.use(express.json());

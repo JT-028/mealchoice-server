@@ -6,7 +6,8 @@ import {
   verifySeller,
   updateSeller,
   deleteSeller,
-  rejectSeller
+  rejectSeller,
+  createSeller
 } from "../controllers/adminController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
@@ -21,6 +22,7 @@ router.get("/stats", getStats);
 // Seller management
 router.get("/sellers/pending", getPendingSellers);
 router.get("/sellers", getAllSellers);
+router.post("/sellers", createSeller);
 router.put("/sellers/:id/verify", verifySeller);
 router.put("/sellers/:id", updateSeller);
 router.delete("/sellers/:id/reject", rejectSeller);

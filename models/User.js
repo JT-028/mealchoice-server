@@ -97,6 +97,45 @@ const userSchema = new mongoose.Schema({
   mustChangePassword: {
     type: Boolean,
     default: false
+  },
+  // Onboarding
+  hasCompletedOnboarding: {
+    type: Boolean,
+    default: false
+  },
+  // Customer preferences (set during onboarding)
+  preferences: {
+    // Health preferences
+    height: { type: Number, default: null }, // cm
+    weight: { type: Number, default: null }, // kg
+    age: { type: Number, default: null },
+    sex: { type: String, enum: ["male", "female", "other", null], default: null },
+    activityLevel: {
+      type: String,
+      enum: ["sedentary", "light", "moderate", "active", "very_active", null],
+      default: null
+    },
+    dietaryRestrictions: [{ type: String }], // e.g., ["vegetarian", "gluten-free"]
+
+    // Meal preferences
+    preferredMealTypes: [{ type: String }], // e.g., ["breakfast", "lunch", "dinner"]
+    preferredCuisines: [{ type: String }], // e.g., ["filipino", "asian", "western"]
+    preferredIngredients: [{ type: String }],
+    avoidedIngredients: [{ type: String }],
+    calorieMin: { type: Number, default: 1200 },
+    calorieMax: { type: Number, default: 2500 },
+    maxSodium: { type: Number, default: 2300 }, // mg
+    maxSugar: { type: Number, default: 50 }, // g
+    maxFats: { type: Number, default: 65 }, // g
+
+    // Budget preferences
+    weeklyBudget: { type: Number, default: null },
+    budgetPerMeal: { type: Number, default: null },
+    prefersPriceRange: {
+      type: String,
+      enum: ["budget", "moderate", "premium", null],
+      default: null
+    }
   }
 }, {
   timestamps: true

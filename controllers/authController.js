@@ -146,7 +146,8 @@ export const login = async (req, res) => {
         email: user.email,
         role: user.role,
         marketLocation: user.marketLocation,
-        isVerified: user.isVerified
+        isVerified: user.isVerified,
+        hasCompletedOnboarding: user.hasCompletedOnboarding
       }
     });
   } catch (error) {

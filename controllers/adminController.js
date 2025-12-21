@@ -182,7 +182,7 @@ export const verifySeller = async (req, res) => {
 // @access  Private (Admin)
 export const updateSeller = async (req, res) => {
   try {
-    const { name, email, marketLocation, isActive, isVerified } = req.body;
+    const { name, email, marketLocation, stallName, stallNumber, isActive, isVerified } = req.body;
 
     const seller = await User.findById(req.params.id);
 
@@ -203,6 +203,8 @@ export const updateSeller = async (req, res) => {
     if (name) seller.name = name;
     if (email) seller.email = email;
     if (marketLocation) seller.marketLocation = marketLocation;
+    if (stallName !== undefined) seller.stallName = stallName;
+    if (stallNumber !== undefined) seller.stallNumber = stallNumber;
     if (typeof isActive === "boolean") seller.isActive = isActive;
     if (typeof isVerified === "boolean") {
       seller.isVerified = isVerified;

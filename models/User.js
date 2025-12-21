@@ -49,9 +49,20 @@ const userSchema = new mongoose.Schema({
     trim: true,
     default: null
   },
-  storeHours: {
-    open: { type: String, default: "06:00" },
-    close: { type: String, default: "18:00" }
+  // Custom product categories created by seller
+  customCategories: [{
+    type: String,
+    trim: true
+  }],
+  // Operating hours per day of week
+  operatingHours: {
+    monday: { open: { type: String, default: "06:00" }, close: { type: String, default: "18:00" }, isClosed: { type: Boolean, default: false } },
+    tuesday: { open: { type: String, default: "06:00" }, close: { type: String, default: "18:00" }, isClosed: { type: Boolean, default: false } },
+    wednesday: { open: { type: String, default: "06:00" }, close: { type: String, default: "18:00" }, isClosed: { type: Boolean, default: false } },
+    thursday: { open: { type: String, default: "06:00" }, close: { type: String, default: "18:00" }, isClosed: { type: Boolean, default: false } },
+    friday: { open: { type: String, default: "06:00" }, close: { type: String, default: "18:00" }, isClosed: { type: Boolean, default: false } },
+    saturday: { open: { type: String, default: "06:00" }, close: { type: String, default: "18:00" }, isClosed: { type: Boolean, default: false } },
+    sunday: { open: { type: String, default: "06:00" }, close: { type: String, default: "18:00" }, isClosed: { type: Boolean, default: true } }
   },
   paymentQR: {
     type: String,

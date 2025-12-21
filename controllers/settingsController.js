@@ -193,21 +193,31 @@ export const exportOrders = async (req, res) => {
   }
 };
 
-// @desc    Update seller settings (store hours, notifications)
+// @desc    Update seller settings (operating hours, notifications)
 // @route   PUT /api/settings/seller
 // @access  Private (Seller only)
 export const updateSellerSettings = async (req, res) => {
   try {
-    const { storeHours, notifyNewOrders, notifyLowStock } = req.body;
+    const { operatingHours, notifyNewOrders, notifyLowStock } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    if (storeHours) {
-      if (storeHours.open) user.storeHours.open = storeHours.open;
-      if (storeHours.close) user.storeHours.close = storeHours.close;
+    if (operatingHours) {
+      // Merge incoming hours with existing ones
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      days.forEach(day => {
+        if (operatingHours[day]) {
+          if (!user.operatingHours) user.operatingHours = {};
+          if (!user.operatingHours[day]) user.operatingHours[day] = {};
+          if (operatingHours[day].open !== undefined) user.operatingHours[day].open = operatingHours[day].open;
+          if (operatingHours[day].close !== undefined) user.operatingHours[day].close = operatingHours[day].close;
+          if (operatingHours[day].isClosed !== undefined) user.operatingHours[day].isClosed = operatingHours[day].isClosed;
+        }
+      });
+      user.markModified('operatingHours');
     }
 
     if (notifyNewOrders !== undefined) user.notifyNewOrders = notifyNewOrders;
@@ -219,7 +229,7 @@ export const updateSellerSettings = async (req, res) => {
       success: true,
       message: "Settings updated successfully",
       settings: {
-        storeHours: user.storeHours,
+        operatingHours: user.operatingHours,
         notifyNewOrders: user.notifyNewOrders,
         notifyLowStock: user.notifyLowStock
       }
@@ -370,7 +380,10 @@ export const getSettings = async (req, res) => {
     // Add seller-specific settings
     if (user.role === "seller") {
       settings.marketLocation = user.marketLocation;
-      settings.storeHours = user.storeHours;
+      settings.stallName = user.stallName;
+      settings.stallNumber = user.stallNumber;
+      settings.operatingHours = user.operatingHours;
+      settings.customCategories = user.customCategories || [];
       settings.notifyNewOrders = user.notifyNewOrders;
       settings.notifyLowStock = user.notifyLowStock;
       settings.paymentQR = user.paymentQR;

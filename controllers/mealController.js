@@ -13,11 +13,15 @@ export const getMeals = async (req, res) => {
 };
 
 export const createMeal = async (req, res) => {
-  const { mealName, calories, description, macros, estimatedCost, ingredients } = req.body;
+  const { mealName, name, calories, description, macros, estimatedCost, ingredients } = req.body;
+  
+  // Robust field handling
+  const finalMealName = mealName || name;
   
   const meal = new Meal({ 
     user: req.user._id,
-    mealName, 
+    mealName: finalMealName,
+    name: finalMealName, // Populate both for compatibility
     calories,
     description,
     macros,

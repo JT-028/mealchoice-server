@@ -1,14 +1,27 @@
 import mongoose from 'mongoose';
 
 const mealSchema = new mongoose.Schema({
-  name: {
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
+  mealName: {
     type: String,
     required: true,
   },
+  description: String,
   calories: {
     type: Number,
     required: true,
   },
+  macros: {
+    protein: String,
+    carbs: String,
+    fats: String,
+  },
+  estimatedCost: Number,
+  ingredients: [String],
   createdAt: {
     type: Date,
     default: Date.now,

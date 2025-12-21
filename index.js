@@ -70,6 +70,8 @@ app.get("/api/health", (req, res) => {
 });
 
 // Socket.io authentication middleware
+const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-jwt-key-change-in-production";
+
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
 
@@ -78,10 +80,11 @@ io.use((socket, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     socket.userId = decoded.id;
     next();
   } catch (error) {
+    console.error("Socket JWT verification error:", error.message);
     next(new Error("Authentication error: Invalid token"));
   }
 });

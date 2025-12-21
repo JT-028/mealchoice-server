@@ -355,3 +355,113 @@ export const uploadImage = async (req, res) => {
   }
 };
 
+// @desc    Bulk delete products
+// @route   DELETE /api/products/bulk
+// @access  Private (Seller only)
+export const bulkDeleteProducts = async (req, res) => {
+  try {
+    const { productIds } = req.body;
+
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide an array of product IDs"
+      });
+    }
+
+    // Verify all products belong to this seller
+    const products = await Product.find({
+      _id: { $in: productIds },
+      seller: req.user._id
+    });
+
+    if (products.length !== productIds.length) {
+      return res.status(403).json({
+        success: false,
+        message: "Some products were not found or you don't have permission"
+      });
+    }
+
+    // Delete product images
+    for (const product of products) {
+      if (product.image) {
+        const imagePath = path.join(__dirname, "..", product.image);
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      }
+    }
+
+    // Bulk delete
+    await Product.deleteMany({
+      _id: { $in: productIds },
+      seller: req.user._id
+    });
+
+    res.json({
+      success: true,
+      message: `${productIds.length} product(s) deleted successfully`,
+      count: productIds.length
+    });
+  } catch (error) {
+    console.error("Bulk delete error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during bulk delete"
+    });
+  }
+};
+
+// @desc    Bulk toggle product availability
+// @route   PUT /api/products/bulk-availability
+// @access  Private (Seller only)
+export const bulkToggleAvailability = async (req, res) => {
+  try {
+    const { productIds, isAvailable } = req.body;
+
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide an array of product IDs"
+      });
+    }
+
+    if (typeof isAvailable !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide isAvailable as a boolean"
+      });
+    }
+
+    // Verify all products belong to this seller
+    const products = await Product.find({
+      _id: { $in: productIds },
+      seller: req.user._id
+    });
+
+    if (products.length !== productIds.length) {
+      return res.status(403).json({
+        success: false,
+        message: "Some products were not found or you don't have permission"
+      });
+    }
+
+    // Bulk update
+    await Product.updateMany(
+      { _id: { $in: productIds }, seller: req.user._id },
+      { isAvailable }
+    );
+
+    res.json({
+      success: true,
+      message: `${productIds.length} product(s) ${isAvailable ? 'enabled' : 'disabled'} successfully`,
+      count: productIds.length
+    });
+  } catch (error) {
+    console.error("Bulk toggle availability error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during bulk update"
+    });
+  }
+};

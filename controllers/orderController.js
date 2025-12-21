@@ -2,8 +2,8 @@ import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import fs from "fs";
 import User from "../models/User.js";
-import { emitLowStockNotification } from "../utils/socket.js";
-import { sendLowStockEmail } from "../utils/sendEmail.js";
+import { emitLowStockNotification, emitNewOrderNotification } from "../utils/socket.js";
+import { sendLowStockEmail, sendNewOrderEmail } from "../utils/sendEmail.js";
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -11,7 +11,7 @@ import { sendLowStockEmail } from "../utils/sendEmail.js";
 export const createOrder = async (req, res) => {
   try {
     // If using FormData, items might be a JSON string
-    let { items, notes } = req.body;
+    let { items, notes, paymentMethods, deliveryType, deliveryAddress } = req.body;
 
     if (typeof items === 'string') {
       try {
@@ -19,6 +19,17 @@ export const createOrder = async (req, res) => {
       } catch (e) {
         return res.status(400).json({ success: false, message: "Invalid items format" });
       }
+    }
+
+    if (typeof paymentMethods === 'string') {
+      try {
+        paymentMethods = JSON.parse(paymentMethods);
+      } catch (e) {
+        console.error("Failed to parse paymentMethods:", e);
+        paymentMethods = {};
+      }
+    } else if (!paymentMethods) {
+      paymentMethods = {};
     }
 
     if (!items || items.length === 0) {
@@ -123,10 +134,46 @@ export const createOrder = async (req, res) => {
         total: orderData.total,
         marketLocation: orderData.marketLocation,
         notes,
-        paymentProof: orderData.paymentProof
+        paymentMethod: paymentMethods[sellerId] || 'qr',
+        paymentProof: orderData.paymentProof,
+        deliveryType: deliveryType || 'pickup',
+        deliveryAddress: deliveryType === 'delivery' && deliveryAddress ? {
+          fullAddress: deliveryAddress.fullAddress,
+          barangay: deliveryAddress.barangay,
+          city: deliveryAddress.city,
+          province: deliveryAddress.province,
+          postalCode: deliveryAddress.postalCode,
+          contactPhone: deliveryAddress.contactPhone,
+          deliveryNotes: deliveryAddress.deliveryNotes
+        } : null
       });
 
       createdOrders.push(order);
+
+      // Notify seller about new order
+      try {
+        const seller = await User.findById(sellerId);
+        if (seller) {
+          // Emit real-time notification
+          emitNewOrderNotification(sellerId, order, req.user.name);
+
+          // Send email notification
+          if (seller.email) {
+            await sendNewOrderEmail({
+              to: seller.email,
+              sellerName: seller.name,
+              orderId: order._id,
+              buyerName: req.user.name,
+              items: order.items,
+              total: order.total,
+              marketLocation: order.marketLocation
+            });
+          }
+        }
+      } catch (notifyError) {
+        console.error("Failed to send order notification:", notifyError);
+        // Don't fail the order creation if notification fails
+      }
     }
 
     res.status(201).json({
@@ -178,22 +225,35 @@ export const getMyOrders = async (req, res) => {
 // @access  Private (Seller)
 export const getSellerOrders = async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, archived } = req.query;
 
     const query = { seller: req.user._id };
     if (status && status !== "all") {
       query.status = status;
     }
 
+    // Filter by archived status (default: show non-archived)
+    if (archived === 'true') {
+      query.isArchived = true;
+    } else if (archived === 'false' || archived === undefined) {
+      query.isArchived = { $ne: true };
+    }
+
     const orders = await Order.find(query)
       .populate("buyer", "name email")
       .sort({ createdAt: -1 });
 
-    // Count by status
+    // Count by status (excluding archived for main counts)
     const statusCounts = await Order.aggregate([
-      { $match: { seller: req.user._id } },
+      { $match: { seller: req.user._id, isArchived: { $ne: true } } },
       { $group: { _id: "$status", count: { $sum: 1 } } }
     ]);
+
+    // Count archived orders
+    const archivedCount = await Order.countDocuments({
+      seller: req.user._id,
+      isArchived: true
+    });
 
     const counts = {
       pending: 0,
@@ -201,7 +261,8 @@ export const getSellerOrders = async (req, res) => {
       preparing: 0,
       ready: 0,
       completed: 0,
-      cancelled: 0
+      cancelled: 0,
+      archived: archivedCount
     };
 
     statusCounts.forEach(s => {
@@ -360,6 +421,281 @@ export const getOrder = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error fetching order"
+    });
+  }
+};
+
+// @desc    Archive/unarchive an order
+// @route   PUT /api/orders/:id/archive
+// @access  Private (Seller)
+export const archiveOrder = async (req, res) => {
+  try {
+    const { archive = true } = req.body;
+
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
+    // Only seller can archive
+    if (order.seller.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to archive this order"
+      });
+    }
+
+    // Only completed or cancelled orders can be archived
+    if (!["completed", "cancelled"].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Only completed or cancelled orders can be archived"
+      });
+    }
+
+    order.isArchived = archive;
+    await order.save();
+
+    res.json({
+      success: true,
+      message: archive ? "Order archived successfully" : "Order unarchived successfully",
+      order
+    });
+  } catch (error) {
+    console.error("Archive order error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error archiving order"
+    });
+  }
+};
+
+// @desc    Bulk archive/unarchive orders
+// @route   PUT /api/orders/bulk-archive
+// @access  Private (Seller)
+export const bulkArchiveOrders = async (req, res) => {
+  try {
+    const { orderIds, archive = true } = req.body;
+
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide an array of order IDs"
+      });
+    }
+
+    // Verify all orders belong to this seller and are archivable
+    const orders = await Order.find({
+      _id: { $in: orderIds },
+      seller: req.user._id
+    });
+
+    if (orders.length !== orderIds.length) {
+      return res.status(403).json({
+        success: false,
+        message: "Some orders were not found or you don't have permission"
+      });
+    }
+
+    // Check if all orders can be archived (completed or cancelled)
+    const nonArchivable = orders.filter(o =>
+      archive && !["completed", "cancelled"].includes(o.status)
+    );
+
+    if (nonArchivable.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Only completed or cancelled orders can be archived"
+      });
+    }
+
+    // Bulk update
+    await Order.updateMany(
+      { _id: { $in: orderIds }, seller: req.user._id },
+      { isArchived: archive }
+    );
+
+    res.json({
+      success: true,
+      message: `${orderIds.length} order(s) ${archive ? 'archived' : 'unarchived'} successfully`,
+      count: orderIds.length
+    });
+  } catch (error) {
+    console.error("Bulk archive error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during bulk archive"
+    });
+  }
+};
+
+// @desc    Get seller analytics data
+// @route   GET /api/orders/seller/analytics
+// @access  Private (Seller)
+export const getSellerAnalytics = async (req, res) => {
+  try {
+    const sellerId = req.user._id;
+    const { startDate, endDate, period } = req.query;
+
+    // Build date filter
+    let dateFilter = {};
+    const now = new Date();
+
+    if (startDate && endDate) {
+      // Custom date range
+      dateFilter = {
+        createdAt: {
+          $gte: new Date(startDate),
+          $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
+        }
+      };
+    } else if (period) {
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      switch (period) {
+        case 'today':
+          dateFilter = { createdAt: { $gte: startOfToday } };
+          break;
+        case 'week':
+          const weekAgo = new Date(startOfToday);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          dateFilter = { createdAt: { $gte: weekAgo } };
+          break;
+        case 'month':
+          const monthAgo = new Date(startOfToday);
+          monthAgo.setMonth(monthAgo.getMonth() - 1);
+          dateFilter = { createdAt: { $gte: monthAgo } };
+          break;
+        case 'year':
+          const yearAgo = new Date(startOfToday);
+          yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+          dateFilter = { createdAt: { $gte: yearAgo } };
+          break;
+        default:
+          // All time - no filter
+          break;
+      }
+    }
+
+    const baseQuery = { seller: sellerId, ...dateFilter };
+
+    // Get all orders for the period
+    const orders = await Order.find(baseQuery);
+
+    // Calculate metrics
+    const completedOrders = orders.filter(o => o.status === 'completed');
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + o.total, 0);
+    const totalOrders = orders.length;
+    const pendingOrders = orders.filter(o => o.status === 'pending').length;
+    const cancelledOrders = orders.filter(o => o.status === 'cancelled').length;
+    const averageOrderValue = completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0;
+
+    // Payment method breakdown
+    const paymentBreakdown = {
+      qr: orders.filter(o => o.paymentMethod === 'qr' || !o.paymentMethod).length,
+      cod: orders.filter(o => o.paymentMethod === 'cod').length
+    };
+
+    // Status breakdown
+    const statusBreakdown = {
+      pending: orders.filter(o => o.status === 'pending').length,
+      confirmed: orders.filter(o => o.status === 'confirmed').length,
+      preparing: orders.filter(o => o.status === 'preparing').length,
+      ready: orders.filter(o => o.status === 'ready').length,
+      completed: orders.filter(o => o.status === 'completed').length,
+      cancelled: orders.filter(o => o.status === 'cancelled').length
+    };
+
+    // Top selling products
+    const productSales = {};
+    for (const order of completedOrders) {
+      for (const item of order.items) {
+        const key = item.product?.toString() || item.name;
+        if (!productSales[key]) {
+          productSales[key] = {
+            name: item.name,
+            quantity: 0,
+            revenue: 0,
+            image: item.image
+          };
+        }
+        productSales[key].quantity += item.quantity;
+        productSales[key].revenue += item.price * item.quantity;
+      }
+    }
+    const topProducts = Object.values(productSales)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
+
+    // Sales over time (daily for last 7 days, weekly for month, monthly for year)
+    const salesOverTime = [];
+    const groupByDate = {};
+
+    for (const order of completedOrders) {
+      const date = order.createdAt.toISOString().split('T')[0];
+      if (!groupByDate[date]) {
+        groupByDate[date] = { date, orders: 0, revenue: 0 };
+      }
+      groupByDate[date].orders += 1;
+      groupByDate[date].revenue += order.total;
+    }
+
+    // Get last 14 days of data
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      salesOverTime.push(groupByDate[dateStr] || { date: dateStr, orders: 0, revenue: 0 });
+    }
+
+    // Comparison with previous period
+    let previousPeriodRevenue = 0;
+    if (period && period !== 'all') {
+      const periodDays = period === 'today' ? 1 : period === 'week' ? 7 : period === 'month' ? 30 : 365;
+      const prevStart = new Date(now);
+      prevStart.setDate(prevStart.getDate() - (periodDays * 2));
+      const prevEnd = new Date(now);
+      prevEnd.setDate(prevEnd.getDate() - periodDays);
+
+      const prevOrders = await Order.find({
+        seller: sellerId,
+        status: 'completed',
+        createdAt: { $gte: prevStart, $lt: prevEnd }
+      });
+      previousPeriodRevenue = prevOrders.reduce((sum, o) => sum + o.total, 0);
+    }
+
+    const revenueChange = previousPeriodRevenue > 0
+      ? ((totalRevenue - previousPeriodRevenue) / previousPeriodRevenue) * 100
+      : 0;
+
+    res.json({
+      success: true,
+      analytics: {
+        summary: {
+          totalRevenue,
+          totalOrders,
+          completedOrders: completedOrders.length,
+          pendingOrders,
+          cancelledOrders,
+          averageOrderValue,
+          revenueChange: Math.round(revenueChange * 10) / 10
+        },
+        paymentBreakdown,
+        statusBreakdown,
+        topProducts,
+        salesOverTime
+      }
+    });
+  } catch (error) {
+    console.error("Get seller analytics error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error fetching analytics"
     });
   }
 };

@@ -32,7 +32,7 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, "Category is required"],
-    enum: ["vegetables", "fruits", "meat", "seafood", "grains", "dairy", "spices", "others"],
+    trim: true,
     default: "others"
   },
   seller: {

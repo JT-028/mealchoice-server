@@ -16,6 +16,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import preferencesRoutes from "./routes/preferencesRoutes.js";
+import addressRoutes from "./routes/addressRoutes.js";
 import Message from "./models/Message.js";
 import Conversation from "./models/Conversation.js";
 
@@ -59,6 +60,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/preferences', preferencesRoutes);
+app.use('/api/addresses', addressRoutes);
 
 // Basic Route
 app.get("/api/health", (req, res) => {

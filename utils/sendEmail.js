@@ -133,6 +133,69 @@ export const sendLowStockEmail = async ({ to, productName, currentStock, thresho
 };
 
 /**
+ * Send new order notification email to seller
+ */
+export const sendNewOrderEmail = async ({ to, sellerName, orderId, buyerName, items, total, marketLocation }) => {
+  const itemsList = items.map(item =>
+    `<tr>
+      <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity} ${item.unit}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">₱${(item.price * item.quantity).toFixed(2)}</td>
+    </tr>`
+  ).join('');
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h1 style="color: #4CAF50;">🛒 New Order Received!</h1>
+      <p>Hi ${sellerName},</p>
+      <p>Great news! You have received a new order from <strong>${buyerName}</strong>.</p>
+      
+      <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p style="margin: 0 0 10px;"><strong>Order ID:</strong> ${orderId}</p>
+        <p style="margin: 0;"><strong>Market Location:</strong> ${marketLocation}</p>
+      </div>
+      
+      <h3 style="color: #333; margin-top: 24px;">Order Items</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #f5f5f5;">
+            <th style="padding: 10px; text-align: left;">Item</th>
+            <th style="padding: 10px; text-align: center;">Quantity</th>
+            <th style="padding: 10px; text-align: right;">Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsList}
+        </tbody>
+        <tfoot>
+          <tr style="background: #f5f5f5; font-weight: bold;">
+            <td colspan="2" style="padding: 12px;">Total</td>
+            <td style="padding: 12px; text-align: right;">₱${total.toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.CLIENT_URL}/seller/orders" 
+           style="background: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+          View Order Details
+        </a>
+      </div>
+      
+      <p style="color: #666; font-size: 14px;">
+        Please review the order and update its status as you prepare it.
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to,
+    subject: `New Order #${orderId.toString().slice(-6).toUpperCase()} - ${items.length} item(s)`,
+    html,
+  });
+};
+
+/**
  * Send verification email to a customer after registration
  */
 export const sendCustomerVerificationEmail = async ({ to, name, verificationToken }) => {
@@ -165,6 +228,55 @@ export const sendCustomerVerificationEmail = async ({ to, name, verificationToke
   await sendEmail({
     to,
     subject: "Verify Your MealChoice Account",
+    html,
+  });
+};
+
+/**
+ * Send seller deactivation notification email
+ * @param {Object} options - Email options
+ * @param {string} options.to - Seller's email
+ * @param {string} options.name - Seller's name
+ * @param {string} options.adminEmail - Admin email to contact for reactivation
+ */
+export const sendSellerDeactivationEmail = async ({ to, name, adminEmail }) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h1 style="color: #DC2626;">Account Deactivated</h1>
+      <p>Hi ${name},</p>
+      <p>Your MealChoice seller account has been deactivated by an administrator.</p>
+      
+      <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <h3 style="color: #DC2626; margin-top: 0;">What does this mean?</h3>
+        <ul style="color: #7F1D1D;">
+          <li>Your products are no longer visible to customers</li>
+          <li>You cannot receive new orders</li>
+          <li>You cannot access your seller dashboard</li>
+        </ul>
+      </div>
+      
+      <p><strong>To reactivate your account:</strong></p>
+      <p>Please contact the administrator by sending an email to:</p>
+      
+      <div style="text-align: center; margin: 20px 0;">
+        <a href="mailto:${adminEmail}?subject=Request%20to%20Reactivate%20Seller%20Account" 
+           style="background: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+          Contact Admin
+        </a>
+      </div>
+      
+      <p style="color: #666;">Or email directly: <a href="mailto:${adminEmail}">${adminEmail}</a></p>
+      
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      <p style="color: #999; font-size: 12px;">
+        This is an automated message from MealChoice. Please do not reply to this email.
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to,
+    subject: "Your MealChoice Seller Account Has Been Deactivated",
     html,
   });
 };

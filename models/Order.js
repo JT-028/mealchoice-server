@@ -51,6 +51,11 @@ const orderSchema = new mongoose.Schema({
     enum: ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"],
     default: "pending"
   },
+  paymentMethod: {
+    type: String,
+    enum: ["qr", "cod"],
+    default: "qr"
+  },
   marketLocation: {
     type: String,
     required: true
@@ -71,13 +76,32 @@ const orderSchema = new mongoose.Schema({
   isPaymentVerified: {
     type: Boolean,
     default: false
+  },
+  isArchived: {
+    type: Boolean,
+    default: false
+  },
+  // Delivery options
+  deliveryType: {
+    type: String,
+    enum: ["pickup", "delivery"],
+    default: "pickup"
+  },
+  deliveryAddress: {
+    fullAddress: { type: String, default: null },
+    barangay: { type: String, default: null },
+    city: { type: String, default: null },
+    province: { type: String, default: null },
+    postalCode: { type: String, default: null },
+    contactPhone: { type: String, default: null },
+    deliveryNotes: { type: String, default: null }
   }
 }, {
   timestamps: true
 });
 
 // Add initial status to history on create
-orderSchema.pre("save", function() {
+orderSchema.pre("save", function () {
   if (this.isNew) {
     this.statusHistory = [{
       status: "pending",

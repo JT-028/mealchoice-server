@@ -3,6 +3,8 @@ import Order from "../models/Order.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { Jimp } from "jimp";
+import jsQR from "jsqr";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +15,7 @@ const __dirname = path.dirname(__filename);
 export const updateProfile = async (req, res) => {
   try {
     const { name, phone } = req.body;
-    
+
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
@@ -191,21 +193,31 @@ export const exportOrders = async (req, res) => {
   }
 };
 
-// @desc    Update seller settings (store hours, notifications)
+// @desc    Update seller settings (operating hours, notifications)
 // @route   PUT /api/settings/seller
 // @access  Private (Seller only)
 export const updateSellerSettings = async (req, res) => {
   try {
-    const { storeHours, notifyNewOrders, notifyLowStock } = req.body;
+    const { operatingHours, notifyNewOrders, notifyLowStock } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    if (storeHours) {
-      if (storeHours.open) user.storeHours.open = storeHours.open;
-      if (storeHours.close) user.storeHours.close = storeHours.close;
+    if (operatingHours) {
+      // Merge incoming hours with existing ones
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      days.forEach(day => {
+        if (operatingHours[day]) {
+          if (!user.operatingHours) user.operatingHours = {};
+          if (!user.operatingHours[day]) user.operatingHours[day] = {};
+          if (operatingHours[day].open !== undefined) user.operatingHours[day].open = operatingHours[day].open;
+          if (operatingHours[day].close !== undefined) user.operatingHours[day].close = operatingHours[day].close;
+          if (operatingHours[day].isClosed !== undefined) user.operatingHours[day].isClosed = operatingHours[day].isClosed;
+        }
+      });
+      user.markModified('operatingHours');
     }
 
     if (notifyNewOrders !== undefined) user.notifyNewOrders = notifyNewOrders;
@@ -217,7 +229,7 @@ export const updateSellerSettings = async (req, res) => {
       success: true,
       message: "Settings updated successfully",
       settings: {
-        storeHours: user.storeHours,
+        operatingHours: user.operatingHours,
         notifyNewOrders: user.notifyNewOrders,
         notifyLowStock: user.notifyLowStock
       }
@@ -254,7 +266,59 @@ export const uploadPaymentQR = async (req, res) => {
       }
     }
 
-    user.paymentQR = `/uploads/qr/${req.file.filename}`;
+    // Try to detect and extract QR code from image
+    let finalPath = req.file.path;
+    let finalFilename = req.file.filename;
+
+    try {
+      const image = await Jimp.read(req.file.path);
+      const width = image.width;
+      const height = image.height;
+
+      // Get image data for QR detection
+      const imageData = {
+        data: new Uint8ClampedArray(image.bitmap.data),
+        width,
+        height
+      };
+
+      const qrCode = jsQR(imageData.data, width, height);
+
+      if (qrCode && qrCode.location) {
+        // QR code found! Extract just the QR portion with padding
+        const padding = 30;
+        const topLeft = qrCode.location.topLeftCorner;
+        const bottomRight = qrCode.location.bottomRightCorner;
+
+        const x = Math.max(0, Math.floor(topLeft.x) - padding);
+        const y = Math.max(0, Math.floor(topLeft.y) - padding);
+        const qrWidth = Math.min(width - x, Math.ceil(bottomRight.x - topLeft.x) + padding * 2);
+        const qrHeight = Math.min(height - y, Math.ceil(bottomRight.y - topLeft.y) + padding * 2);
+
+        // Crop to just the QR code area using new Jimp API
+        const croppedImage = image.clone().crop({ x, y, w: qrWidth, h: qrHeight });
+
+        // Save as new file
+        const croppedFilename = `qr_${Date.now()}_cropped.png`;
+        const croppedPath = path.join(path.dirname(req.file.path), croppedFilename);
+        await croppedImage.write(croppedPath);
+
+        // Delete original file
+        fs.unlinkSync(req.file.path);
+
+        finalPath = croppedPath;
+        finalFilename = croppedFilename;
+
+        console.log("QR code detected and extracted successfully");
+      } else {
+        console.log("No QR code detected, using original image");
+      }
+    } catch (extractError) {
+      console.error("QR extraction failed, using original image:", extractError.message);
+      // Continue with original image if extraction fails
+    }
+
+    user.paymentQR = `/uploads/qr/${finalFilename}`;
     await user.save();
 
     res.json({
@@ -264,7 +328,7 @@ export const uploadPaymentQR = async (req, res) => {
     });
   } catch (error) {
     console.error("Upload payment QR error:", error);
-    if (req.file) fs.unlinkSync(req.file.path);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res.status(500).json({ success: false, message: "Server error uploading QR" });
   }
 };
@@ -316,7 +380,10 @@ export const getSettings = async (req, res) => {
     // Add seller-specific settings
     if (user.role === "seller") {
       settings.marketLocation = user.marketLocation;
-      settings.storeHours = user.storeHours;
+      settings.stallName = user.stallName;
+      settings.stallNumber = user.stallNumber;
+      settings.operatingHours = user.operatingHours;
+      settings.customCategories = user.customCategories || [];
       settings.notifyNewOrders = user.notifyNewOrders;
       settings.notifyLowStock = user.notifyLowStock;
       settings.paymentQR = user.paymentQR;

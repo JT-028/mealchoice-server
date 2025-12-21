@@ -85,6 +85,107 @@ export const getPendingSellers = async (req, res) => {
   }
 };
 
+// @desc    Get pending customers (unverified email)
+// @route   GET /api/admin/customers/pending
+// @access  Private (Admin)
+export const getPendingCustomers = async (req, res) => {
+  try {
+    const customers = await User.find({ 
+      role: "customer", 
+      isEmailVerified: false 
+    })
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: customers.length,
+      customers
+    });
+  } catch (error) {
+    console.error("Get pending customers error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+// @desc    Approve customer (verify email manually)
+// @route   PUT /api/admin/customers/:id/approve
+// @access  Private (Admin)
+export const approveCustomer = async (req, res) => {
+  try {
+    const customer = await User.findById(req.params.id);
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    if (customer.role !== "customer") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a customer"
+      });
+    }
+
+    customer.isEmailVerified = true;
+    customer.emailVerificationToken = null;
+    customer.emailVerificationExpires = null;
+    await customer.save();
+
+    res.json({
+      success: true,
+      message: "Customer email verified successfully"
+    });
+  } catch (error) {
+    console.error("Approve customer error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+// @desc    Reject pending customer
+// @route   DELETE /api/admin/customers/:id/reject
+// @access  Private (Admin)
+export const rejectCustomer = async (req, res) => {
+  try {
+    const customer = await User.findById(req.params.id);
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    if (customer.role !== "customer" || customer.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Can only reject pending customers"
+      });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: "Customer registration rejected"
+    });
+  } catch (error) {
+    console.error("Reject customer error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
 // @desc    Get all sellers
 // @route   GET /api/admin/sellers
 // @access  Private (Admin)
@@ -664,6 +765,236 @@ export const deleteAdmin = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error deleting admin"
+    });
+  }
+};
+
+// ==========================================
+// CUSTOMER MANAGEMENT
+// ==========================================
+
+// @desc    Get all customers
+// @route   GET /api/admin/customers
+// @access  Private (Admin)
+export const getAllCustomers = async (req, res) => {
+  try {
+    const { active, search } = req.query;
+
+    const query = { role: "customer" };
+
+    if (active === "true") query.isActive = true;
+    if (active === "false") query.isActive = false;
+
+    let customers = await User.find(query)
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    // Apply search filter if provided
+    if (search) {
+      const searchLower = search.toLowerCase();
+      customers = customers.filter(
+        c => c.name.toLowerCase().includes(searchLower) ||
+            c.email.toLowerCase().includes(searchLower)
+      );
+    }
+
+    res.json({
+      success: true,
+      count: customers.length,
+      customers
+    });
+  } catch (error) {
+    console.error("Get all customers error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+// @desc    Update customer information
+// @route   PUT /api/admin/customers/:id
+// @access  Private (Admin)
+export const updateCustomer = async (req, res) => {
+  try {
+    const { name, email, isActive } = req.body;
+
+    const customer = await User.findById(req.params.id);
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    if (customer.role !== "customer") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a customer"
+      });
+    }
+
+    if (name) customer.name = name;
+    if (email) customer.email = email;
+    if (typeof isActive === "boolean") customer.isActive = isActive;
+
+    await customer.save();
+
+    res.json({
+      success: true,
+      message: "Customer updated successfully",
+      customer
+    });
+  } catch (error) {
+    console.error("Update customer error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+// @desc    Delete customer account
+// @route   DELETE /api/admin/customers/:id
+// @access  Private (Admin)
+export const deleteCustomer = async (req, res) => {
+  try {
+    const customer = await User.findById(req.params.id);
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    if (customer.role !== "customer") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a customer"
+      });
+    }
+
+    // Cancel all pending/active orders for this customer
+    const ordersToCancel = await Order.find({
+      customer: customer._id,
+      status: { $in: ["pending", "confirmed", "preparing", "ready"] }
+    });
+
+    for (const order of ordersToCancel) {
+      order.status = "cancelled";
+      order.statusHistory.push({
+        status: "cancelled",
+        timestamp: new Date(),
+        note: "Order cancelled - customer account was removed"
+      });
+      await order.save();
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: `Customer deleted. ${ordersToCancel.length} active order(s) were cancelled.`
+    });
+  } catch (error) {
+    console.error("Delete customer error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+// @desc    Deactivate customer account
+// @route   PUT /api/admin/customers/:id/deactivate
+// @access  Private (Admin)
+export const deactivateCustomer = async (req, res) => {
+  try {
+    const customer = await User.findById(req.params.id);
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    if (customer.role !== "customer") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a customer"
+      });
+    }
+
+    if (!customer.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer is already deactivated"
+      });
+    }
+
+    customer.isActive = false;
+    customer.deactivatedAt = new Date();
+    customer.deactivatedBy = req.user._id;
+    await customer.save();
+
+    res.json({
+      success: true,
+      message: "Customer account deactivated successfully"
+    });
+  } catch (error) {
+    console.error("Deactivate customer error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error deactivating customer"
+    });
+  }
+};
+
+// @desc    Activate customer account
+// @route   PUT /api/admin/customers/:id/activate
+// @access  Private (Admin)
+export const activateCustomer = async (req, res) => {
+  try {
+    const customer = await User.findById(req.params.id);
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    if (customer.role !== "customer") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a customer"
+      });
+    }
+
+    if (customer.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer is already active"
+      });
+    }
+
+    customer.isActive = true;
+    customer.deactivatedAt = null;
+    customer.deactivatedBy = null;
+    await customer.save();
+
+    res.json({
+      success: true,
+      message: "Customer account activated successfully"
+    });
+  } catch (error) {
+    console.error("Activate customer error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error activating customer"
     });
   }
 };

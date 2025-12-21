@@ -2,6 +2,9 @@ import express from "express";
 import {
   getStats,
   getPendingSellers,
+  getPendingCustomers,
+  approveCustomer,
+  rejectCustomer,
   getAllSellers,
   verifySeller,
   updateSeller,
@@ -12,7 +15,12 @@ import {
   activateSeller,
   getAdmins,
   createAdmin,
-  deleteAdmin
+  deleteAdmin,
+  getAllCustomers,
+  updateCustomer,
+  deleteCustomer,
+  deactivateCustomer,
+  activateCustomer
 } from "../controllers/adminController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
@@ -35,9 +43,21 @@ router.put("/sellers/:id", updateSeller);
 router.delete("/sellers/:id/reject", rejectSeller);
 router.delete("/sellers/:id", deleteSeller);
 
+// Customer management
+router.get("/customers/pending", getPendingCustomers);
+router.get("/customers", getAllCustomers);
+router.put("/customers/:id/approve", approveCustomer);
+router.put("/customers/:id/deactivate", deactivateCustomer);
+router.put("/customers/:id/activate", activateCustomer);
+router.put("/customers/:id", updateCustomer);
+router.delete("/customers/:id/reject", rejectCustomer);
+router.delete("/customers/:id", deleteCustomer);
+
 // Admin management
 router.get("/admins", getAdmins);
 router.post("/admins", createAdmin);
 router.delete("/admins/:id", deleteAdmin);
 
 export default router;
+
+

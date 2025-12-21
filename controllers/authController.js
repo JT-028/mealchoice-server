@@ -182,6 +182,7 @@ export const getProfile = async (req, res) => {
         role: user.role,
         marketLocation: user.marketLocation,
         isVerified: user.isVerified,
+        hasCompletedOnboarding: user.hasCompletedOnboarding,
         createdAt: user.createdAt
       }
     });

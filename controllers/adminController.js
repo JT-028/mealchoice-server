@@ -249,6 +249,22 @@ export const deleteSeller = async (req, res) => {
       });
     }
 
+    // Cancel all pending/active orders for this seller
+    const ordersToCancel = await Order.find({
+      seller: seller._id,
+      status: { $in: ["pending", "confirmed", "preparing", "ready"] }
+    });
+
+    for (const order of ordersToCancel) {
+      order.status = "cancelled";
+      order.statusHistory.push({
+        status: "cancelled",
+        timestamp: new Date(),
+        note: "Order cancelled - seller account was removed"
+      });
+      await order.save();
+    }
+
     // Also delete seller's products
     await Product.deleteMany({ seller: seller._id });
 
@@ -256,7 +272,7 @@ export const deleteSeller = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Seller and their products deleted successfully"
+      message: `Seller deleted. ${ordersToCancel.length} active order(s) were cancelled.`
     });
   } catch (error) {
     console.error("Delete seller error:", error);
@@ -308,7 +324,7 @@ export const rejectSeller = async (req, res) => {
 // @access  Private (Admin)
 export const createSeller = async (req, res) => {
   try {
-    const { name, email, marketLocation } = req.body;
+    const { name, email, marketLocation, stallName, stallNumber } = req.body;
 
     // Validation
     if (!name || !email || !marketLocation) {
@@ -341,6 +357,8 @@ export const createSeller = async (req, res) => {
       password: tempPassword,
       role: "seller",
       marketLocation,
+      stallName: stallName || null,
+      stallNumber: stallNumber || null,
       isVerified: false,
       isEmailVerified: false,
       emailVerificationToken: verificationToken,
@@ -369,6 +387,8 @@ export const createSeller = async (req, res) => {
         name: seller.name,
         email: seller.email,
         marketLocation: seller.marketLocation,
+        stallName: seller.stallName,
+        stallNumber: seller.stallNumber,
         isVerified: seller.isVerified
       }
     });
@@ -386,6 +406,262 @@ export const createSeller = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error creating seller"
+    });
+  }
+};
+
+// @desc    Deactivate seller account
+// @route   PUT /api/admin/sellers/:id/deactivate
+// @access  Private (Admin)
+export const deactivateSeller = async (req, res) => {
+  try {
+    const seller = await User.findById(req.params.id);
+
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found"
+      });
+    }
+
+    if (seller.role !== "seller") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a seller"
+      });
+    }
+
+    if (!seller.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Seller is already deactivated"
+      });
+    }
+
+    seller.isActive = false;
+    seller.deactivatedAt = new Date();
+    seller.deactivatedBy = req.user._id;
+    await seller.save();
+
+    // Send deactivation email
+    try {
+      const { sendSellerDeactivationEmail } = await import("../utils/sendEmail.js");
+      await sendSellerDeactivationEmail({
+        to: seller.email,
+        name: seller.name,
+        adminEmail: process.env.SMTP_EMAIL || "admin@mealwise.com"
+      });
+    } catch (emailError) {
+      console.error("Failed to send deactivation email:", emailError);
+    }
+
+    res.json({
+      success: true,
+      message: "Seller account deactivated successfully"
+    });
+  } catch (error) {
+    console.error("Deactivate seller error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error deactivating seller"
+    });
+  }
+};
+
+// @desc    Activate seller account
+// @route   PUT /api/admin/sellers/:id/activate
+// @access  Private (Admin)
+export const activateSeller = async (req, res) => {
+  try {
+    const seller = await User.findById(req.params.id);
+
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found"
+      });
+    }
+
+    if (seller.role !== "seller") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a seller"
+      });
+    }
+
+    if (seller.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Seller is already active"
+      });
+    }
+
+    seller.isActive = true;
+    seller.deactivatedAt = null;
+    seller.deactivatedBy = null;
+    await seller.save();
+
+    res.json({
+      success: true,
+      message: "Seller account activated successfully"
+    });
+  } catch (error) {
+    console.error("Activate seller error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error activating seller"
+    });
+  }
+};
+
+// @desc    Get all admin accounts
+// @route   GET /api/admin/admins
+// @access  Private (Admin)
+export const getAdmins = async (req, res) => {
+  try {
+    // Auto-fix: Ensure admin@mealwise.com is marked as main admin
+    const mainAdminEmail = "admin@mealwise.com";
+    await User.updateOne(
+      { email: mainAdminEmail, role: "admin", isMainAdmin: { $ne: true } },
+      { isMainAdmin: true }
+    );
+
+    const admins = await User.find({ role: "admin" })
+      .select("name email isMainAdmin isActive createdAt")
+      .sort({ isMainAdmin: -1, createdAt: 1 });
+
+    // Also check by email in case DB flag not set yet
+    const enrichedAdmins = admins.map(admin => ({
+      ...admin.toObject(),
+      isMainAdmin: admin.email === mainAdminEmail || admin.isMainAdmin
+    }));
+
+    res.json({
+      success: true,
+      admins: enrichedAdmins,
+      count: admins.length
+    });
+  } catch (error) {
+    console.error("Get admins error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error fetching admins"
+    });
+  }
+};
+
+// @desc    Create sub-admin account
+// @route   POST /api/admin/admins
+// @access  Private (Admin - Main admin only)
+export const createAdmin = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide name, email, and password"
+      });
+    }
+
+    // Check if email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered"
+      });
+    }
+
+    // Create sub-admin
+    const admin = await User.create({
+      name,
+      email,
+      password,
+      role: "admin",
+      isMainAdmin: false,
+      isVerified: true,
+      isEmailVerified: true,
+      isActive: true
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Sub-admin account created successfully",
+      admin: {
+        _id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        isMainAdmin: admin.isMainAdmin
+      }
+    });
+  } catch (error) {
+    console.error("Create admin error:", error);
+
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: messages[0]
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Server error creating admin"
+    });
+  }
+};
+
+// @desc    Delete sub-admin account
+// @route   DELETE /api/admin/admins/:id
+// @access  Private (Admin)
+export const deleteAdmin = async (req, res) => {
+  try {
+    const admin = await User.findById(req.params.id);
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found"
+      });
+    }
+
+    if (admin.role !== "admin") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not an admin"
+      });
+    }
+
+    // Prevent deleting main admin (by flag or by email)
+    const mainAdminEmail = "admin@mealwise.com";
+    if (admin.isMainAdmin || admin.email === mainAdminEmail) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot delete the main admin account"
+      });
+    }
+
+    // Prevent self-deletion
+    if (admin._id.toString() === req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot delete your own account"
+      });
+    }
+
+    await admin.deleteOne();
+
+    res.json({
+      success: true,
+      message: "Sub-admin account deleted successfully"
+    });
+  } catch (error) {
+    console.error("Delete admin error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error deleting admin"
     });
   }
 };

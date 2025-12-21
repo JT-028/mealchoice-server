@@ -41,3 +41,20 @@ export const emitNotification = (userId, notification) => {
         timestamp: new Date().toISOString()
     });
 };
+
+/**
+ * Emit new order notification to a specific seller
+ */
+export const emitNewOrderNotification = (sellerId, order, buyerName) => {
+    if (!io) return;
+
+    io.to(`user:${sellerId}`).emit("new_order", {
+        type: "new_order",
+        orderId: order._id,
+        buyerName: buyerName,
+        itemCount: order.items.length,
+        total: order.total,
+        marketLocation: order.marketLocation,
+        timestamp: new Date().toISOString()
+    });
+};

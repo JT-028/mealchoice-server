@@ -5,7 +5,10 @@ import {
   getSellerOrders,
   updateOrderStatus,
   getOrder,
-  verifyPayment
+  verifyPayment,
+  archiveOrder,
+  bulkArchiveOrders,
+  getSellerAnalytics
 } from "../controllers/orderController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 import { uploadReceiptImage } from "../middleware/uploadMiddleware.js";
@@ -19,8 +22,11 @@ router.get("/my-orders", protect, getMyOrders);
 
 // Seller routes
 router.get("/seller", protect, authorize("seller"), getSellerOrders);
+router.get("/seller/analytics", protect, authorize("seller"), getSellerAnalytics);
+router.put("/bulk-archive", protect, authorize("seller"), bulkArchiveOrders);
 router.put("/:id/status", protect, authorize("seller"), updateOrderStatus);
 router.put("/:id/payment", protect, authorize("seller"), verifyPayment);
+router.put("/:id/archive", protect, authorize("seller"), archiveOrder);
 
 // Shared route
 router.get("/:id", protect, getOrder);

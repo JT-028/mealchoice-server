@@ -39,6 +39,16 @@ const userSchema = new mongoose.Schema({
     enum: ["San Nicolas Market", "Pampanga Market", null],
     default: null
   },
+  stallName: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  stallNumber: {
+    type: String,
+    trim: true,
+    default: null
+  },
   storeHours: {
     open: { type: String, default: "06:00" },
     close: { type: String, default: "18:00" }
@@ -62,9 +72,35 @@ const userSchema = new mongoose.Schema({
     enum: ["light", "dark", "system"],
     default: "system"
   },
+  // Saved delivery addresses (for customers)
+  savedAddresses: [{
+    label: { type: String, default: "Home" },
+    fullAddress: { type: String, required: true },
+    barangay: { type: String },
+    city: { type: String },
+    province: { type: String },
+    postalCode: { type: String },
+    contactPhone: { type: String },
+    isDefault: { type: Boolean, default: false }
+  }],
   isActive: {
     type: Boolean,
     default: true
+  },
+  // For sub-admin management - main admin cannot be deleted
+  isMainAdmin: {
+    type: Boolean,
+    default: false
+  },
+  // Deactivation tracking (for sellers)
+  deactivatedAt: {
+    type: Date,
+    default: null
+  },
+  deactivatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
   },
   // Seller verification (admin approval)
   isVerified: {

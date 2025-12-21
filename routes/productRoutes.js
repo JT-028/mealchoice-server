@@ -7,7 +7,9 @@ import {
   updateProduct,
   deleteProduct,
   getVerifiedSellers,
-  uploadImage
+  uploadImage,
+  bulkDeleteProducts,
+  bulkToggleAvailability
 } from "../controllers/productController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 import { uploadProductImage } from "../middleware/uploadMiddleware.js";
@@ -24,6 +26,8 @@ router.get("/sellers/list", protect, authorize("customer"), getVerifiedSellers);
 // Protected routes (Seller only)
 router.get("/seller/my-products", protect, authorize("seller"), getSellerProducts);
 router.post("/", protect, authorize("seller"), createProduct);
+router.delete("/bulk", protect, authorize("seller"), bulkDeleteProducts);
+router.put("/bulk-availability", protect, authorize("seller"), bulkToggleAvailability);
 router.put("/:id", protect, authorize("seller"), updateProduct);
 router.delete("/:id", protect, authorize("seller"), deleteProduct);
 
@@ -37,4 +41,3 @@ router.post(
 );
 
 export default router;
-

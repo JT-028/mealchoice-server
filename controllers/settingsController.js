@@ -3,6 +3,8 @@ import Order from "../models/Order.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { Jimp } from "jimp";
+import jsQR from "jsqr";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +15,7 @@ const __dirname = path.dirname(__filename);
 export const updateProfile = async (req, res) => {
   try {
     const { name, phone } = req.body;
-    
+
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
@@ -254,7 +256,59 @@ export const uploadPaymentQR = async (req, res) => {
       }
     }
 
-    user.paymentQR = `/uploads/qr/${req.file.filename}`;
+    // Try to detect and extract QR code from image
+    let finalPath = req.file.path;
+    let finalFilename = req.file.filename;
+
+    try {
+      const image = await Jimp.read(req.file.path);
+      const width = image.width;
+      const height = image.height;
+
+      // Get image data for QR detection
+      const imageData = {
+        data: new Uint8ClampedArray(image.bitmap.data),
+        width,
+        height
+      };
+
+      const qrCode = jsQR(imageData.data, width, height);
+
+      if (qrCode && qrCode.location) {
+        // QR code found! Extract just the QR portion with padding
+        const padding = 30;
+        const topLeft = qrCode.location.topLeftCorner;
+        const bottomRight = qrCode.location.bottomRightCorner;
+
+        const x = Math.max(0, Math.floor(topLeft.x) - padding);
+        const y = Math.max(0, Math.floor(topLeft.y) - padding);
+        const qrWidth = Math.min(width - x, Math.ceil(bottomRight.x - topLeft.x) + padding * 2);
+        const qrHeight = Math.min(height - y, Math.ceil(bottomRight.y - topLeft.y) + padding * 2);
+
+        // Crop to just the QR code area using new Jimp API
+        const croppedImage = image.clone().crop({ x, y, w: qrWidth, h: qrHeight });
+
+        // Save as new file
+        const croppedFilename = `qr_${Date.now()}_cropped.png`;
+        const croppedPath = path.join(path.dirname(req.file.path), croppedFilename);
+        await croppedImage.write(croppedPath);
+
+        // Delete original file
+        fs.unlinkSync(req.file.path);
+
+        finalPath = croppedPath;
+        finalFilename = croppedFilename;
+
+        console.log("QR code detected and extracted successfully");
+      } else {
+        console.log("No QR code detected, using original image");
+      }
+    } catch (extractError) {
+      console.error("QR extraction failed, using original image:", extractError.message);
+      // Continue with original image if extraction fails
+    }
+
+    user.paymentQR = `/uploads/qr/${finalFilename}`;
     await user.save();
 
     res.json({
@@ -264,7 +318,7 @@ export const uploadPaymentQR = async (req, res) => {
     });
   } catch (error) {
     console.error("Upload payment QR error:", error);
-    if (req.file) fs.unlinkSync(req.file.path);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res.status(500).json({ success: false, message: "Server error uploading QR" });
   }
 };

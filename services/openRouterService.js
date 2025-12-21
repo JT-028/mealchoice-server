@@ -97,7 +97,7 @@ export const getAIMealPlan = async (userData) => {
         Respond ONLY with a valid JSON object in the following format:
         {
             "weekPlan": {
-                "Sunday": { "breakfast": { "name": "", "calories": 0, "description": "" }, "lunch": { ... }, "dinner": { ... } },
+                "Sunday": { "breakfast": { "mealName": "", "calories": 0, "description": "" }, "lunch": { ... }, "dinner": { ... } },
                 "Monday": { ... },
                 "Tuesday": { ... },
                 "Wednesday": { ... },

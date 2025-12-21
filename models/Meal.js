@@ -10,6 +10,7 @@ const mealSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  name: String, // Fallback for compatibility
   description: String,
   calories: {
     type: Number,

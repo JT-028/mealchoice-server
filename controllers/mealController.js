@@ -39,3 +39,18 @@ export const createMeal = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const deleteMeal = async (req, res) => {
+  try {
+    const meal = await Meal.findOne({ _id: req.params.id, user: req.user._id });
+    
+    if (!meal) {
+      return res.status(404).json({ success: false, message: 'Meal not found' });
+    }
+    
+    await Meal.deleteOne({ _id: req.params.id });
+    res.json({ success: true, message: 'Meal deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

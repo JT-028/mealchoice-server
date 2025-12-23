@@ -11,6 +11,11 @@ import {
   deletePaymentQR,
   getSellersInfo
 } from "../controllers/settingsController.js";
+import {
+  exportJSON,
+  exportCSV,
+  importJSON
+} from "../controllers/backupController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 import { uploadQRImage } from "../middleware/uploadMiddleware.js";
 
@@ -27,6 +32,12 @@ router.put("/theme", updateTheme);
 router.delete("/account", deleteAccount);
 router.get("/export-orders", exportOrders);
 router.post("/sellers-info", getSellersInfo);
+
+// Backup & Restore routes
+router.get("/backup/json", exportJSON);
+router.get("/backup/csv", exportCSV);
+router.post("/restore", importJSON);
+
 
 // Seller-only routes
 router.put("/seller", authorize("seller"), updateSellerSettings);

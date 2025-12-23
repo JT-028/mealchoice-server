@@ -1,6 +1,6 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
-import { getMeals, createMeal } from '../controllers/mealController.js';
+import { getMeals, createMeal, deleteMeal } from '../controllers/mealController.js';
 
 const router = express.Router();
 
@@ -9,5 +9,6 @@ router.use(protect);
 
 router.get('/', getMeals);
 router.post('/', createMeal);
+router.delete('/:id', deleteMeal);
 
 export default router;

@@ -35,14 +35,14 @@ export const getAIRecommendations = async (userData, availableProducts = []) => 
                     "macros": { "protein": "g", "carbs": "g", "fats": "g" },
                     "estimatedCost": number,
                     "ingredients": ["ingredient 1", "ingredient 2"],
-                    "imageUrl": "https://loremflickr.com/800/600/food,dish-name"
+                    "imageUrl": "https://source.unsplash.com/800x600/?food,dish-name"
                 }
             ],
             "nutritionalAdvice": "General advice based on their health data",
             "summary": "Quick summary of how these choices fit their goals"
         }
         
-        For imageUrl, replace 'dish-name' with a 2-3 word search term related to the meal name, using hyphens instead of spaces. Example: 'grilled-salmon-salad'.`;
+        For imageUrl, replace 'dish-name' with a 2-3 word search term related to the meal name. Example: 'grilled-salmon-salad'. Use commas to separate tags if needed. Avoid using spaces, use hyphens instead.`;
 
         const userPrompt = `User Name: ${name}
         Health Profile:
@@ -101,7 +101,7 @@ export const getAIMealPlan = async (userData) => {
         {
             "weekPlan": {
                 "Sunday": { 
-                    "breakfast": { "mealName": "", "calories": 0, "description": "", "imageUrl": "https://loremflickr.com/800/600/food,search-term" }, 
+                    "breakfast": { "mealName": "", "calories": 0, "description": "", "imageUrl": "https://source.unsplash.com/800x600/?food,search-term" }, 
                     "lunch": { ... }, 
                     "dinner": { ... } 
                 },

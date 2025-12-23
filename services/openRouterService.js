@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import { enrichWithPexelsImages } from "./pexelsService.js";
 
 dotenv.config();
 
@@ -34,15 +35,14 @@ export const getAIRecommendations = async (userData, availableProducts = []) => 
                     "calories": number,
                     "macros": { "protein": "g", "carbs": "g", "fats": "g" },
                     "estimatedCost": number,
-                    "ingredients": ["ingredient 1", "ingredient 2"],
-                    "imageUrl": "https://source.unsplash.com/800x600/?food,dish-name"
+                    "ingredients": ["ingredient 1", "ingredient 2"]
                 }
             ],
             "nutritionalAdvice": "General advice based on their health data",
             "summary": "Quick summary of how these choices fit their goals"
         }
         
-        For imageUrl, replace 'dish-name' with a 2-3 word search term related to the meal name. Example: 'grilled-salmon-salad'. Use commas to separate tags if needed. Avoid using spaces, use hyphens instead.`;
+        Do NOT include imageUrl in your response - images will be added automatically.`;
 
         const userPrompt = `User Name: ${name}
         Health Profile:
@@ -77,7 +77,11 @@ export const getAIRecommendations = async (userData, availableProducts = []) => 
         });
 
         const content = response.choices[0].message.content;
-        return JSON.parse(content);
+        const parsedResponse = JSON.parse(content);
+        
+        // Enrich with Pexels images
+        const enrichedResponse = await enrichWithPexelsImages(parsedResponse, "recommendations");
+        return enrichedResponse;
     } catch (error) {
         console.error("OpenRouter AI Error:", error);
         throw new Error("Failed to generate AI recommendations");
@@ -101,7 +105,7 @@ export const getAIMealPlan = async (userData) => {
         {
             "weekPlan": {
                 "Sunday": { 
-                    "breakfast": { "mealName": "", "calories": 0, "description": "", "imageUrl": "https://source.unsplash.com/800x600/?food,search-term" }, 
+                    "breakfast": { "mealName": "", "calories": 0, "description": "" }, 
                     "lunch": { ... }, 
                     "dinner": { ... } 
                 },
@@ -116,7 +120,7 @@ export const getAIMealPlan = async (userData) => {
             "advice": "General advice for the week"
         }
         
-        For imageUrl, replace 'search-term' with a relevant food keyword (e.g., 'pancakes', 'salad', 'steak').`;
+        Do NOT include imageUrl in your response - images will be added automatically.`;
 
         const userPrompt = `User Name: ${name}
         Health Profile:
@@ -147,7 +151,11 @@ export const getAIMealPlan = async (userData) => {
         });
 
         const content = response.choices[0].message.content;
-        return JSON.parse(content);
+        const parsedResponse = JSON.parse(content);
+        
+        // Enrich with Pexels images
+        const enrichedResponse = await enrichWithPexelsImages(parsedResponse, "mealPlan");
+        return enrichedResponse;
     } catch (error) {
         console.error("OpenRouter AI Meal Plan Error:", error);
         throw new Error("Failed to generate AI meal plan");

@@ -450,3 +450,300 @@ export const importJSON = async (req, res) => {
     res.status(500).json({ message: "Error restoring data" });
   }
 };
+
+// ============================================
+// ADMIN-ONLY: Full Database Backup & Restore
+// ============================================
+
+// GET /api/admin/backup/json - Export entire database as JSON (Admin only)
+export const exportAdminJSON = async (req, res) => {
+  try {
+    // Get all users (excluding passwords)
+    const users = await User.find({}).select("-password -emailVerificationToken").lean();
+    
+    // Get all products
+    const products = await Product.find({}).lean();
+    
+    // Get all orders
+    const orders = await Order.find({})
+      .populate("buyer", "name email")
+      .populate("seller", "name email stallName")
+      .lean();
+    
+    // Get all budgets
+    const budgets = await Budget.find({}).lean();
+    
+    // Get all meals
+    const meals = await Meal.find({}).lean();
+
+    const backupData = {
+      exportDate: new Date().toISOString(),
+      version: "1.0",
+      type: "admin_full_backup",
+      stats: {
+        totalUsers: users.length,
+        totalProducts: products.length,
+        totalOrders: orders.length,
+        totalBudgets: budgets.length,
+        totalMeals: meals.length
+      },
+      data: {
+        users: users.map(u => ({
+          _id: u._id,
+          name: u.name,
+          email: u.email,
+          phone: u.phone,
+          role: u.role,
+          marketLocation: u.marketLocation,
+          stallName: u.stallName,
+          stallNumber: u.stallNumber,
+          customCategories: u.customCategories,
+          operatingHours: u.operatingHours,
+          paymentQR: u.paymentQR,
+          notifyNewOrders: u.notifyNewOrders,
+          notifyLowStock: u.notifyLowStock,
+          theme: u.theme,
+          savedAddresses: u.savedAddresses,
+          isActive: u.isActive,
+          isMainAdmin: u.isMainAdmin,
+          isVerified: u.isVerified,
+          isEmailVerified: u.isEmailVerified,
+          hasCompletedOnboarding: u.hasCompletedOnboarding,
+          preferences: u.preferences,
+          createdAt: u.createdAt,
+          updatedAt: u.updatedAt
+        })),
+        products,
+        orders,
+        budgets,
+        meals
+      }
+    };
+
+    const filename = `mealwise-full-backup-${new Date().toISOString().split("T")[0]}.json`;
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Type", "application/json");
+    res.json(backupData);
+
+  } catch (error) {
+    console.error("Admin export JSON error:", error);
+    res.status(500).json({ message: "Error exporting database" });
+  }
+};
+
+// GET /api/admin/backup/csv - Export entire database as CSV (Admin only)
+export const exportAdminCSV = async (req, res) => {
+  try {
+    let csvContent = `MealWise Full Database Backup\nDate: ${new Date().toISOString()}\nType: Admin Full Backup\n\n`;
+
+    // Users
+    const users = await User.find({}).select("-password -emailVerificationToken").lean();
+    if (users.length > 0) {
+      csvContent += arrayToCSV(users.map(u => ({
+        id: u._id.toString(),
+        name: u.name,
+        email: u.email,
+        phone: u.phone || "",
+        role: u.role,
+        marketLocation: u.marketLocation || "",
+        stallName: u.stallName || "",
+        stallNumber: u.stallNumber || "",
+        isActive: u.isActive,
+        isVerified: u.isVerified,
+        createdAt: u.createdAt
+      })), "USERS") + "\n\n";
+    }
+
+    // Products
+    const products = await Product.find({}).populate("seller", "name email").lean();
+    if (products.length > 0) {
+      csvContent += arrayToCSV(products.map(p => ({
+        id: p._id.toString(),
+        name: p.name,
+        description: p.description || "",
+        price: p.price,
+        quantity: p.quantity,
+        unit: p.unit,
+        category: p.category,
+        sellerName: p.seller?.name || "",
+        sellerEmail: p.seller?.email || "",
+        marketLocation: p.marketLocation,
+        isAvailable: p.isAvailable,
+        createdAt: p.createdAt
+      })), "PRODUCTS") + "\n\n";
+    }
+
+    // Orders
+    const orders = await Order.find({})
+      .populate("buyer", "name email")
+      .populate("seller", "name email stallName")
+      .lean();
+    if (orders.length > 0) {
+      csvContent += arrayToCSV(orders.map(o => ({
+        id: o._id.toString(),
+        buyerName: o.buyer?.name || "",
+        buyerEmail: o.buyer?.email || "",
+        sellerName: o.seller?.name || "",
+        sellerEmail: o.seller?.email || "",
+        itemCount: o.items?.length || 0,
+        total: o.total,
+        status: o.status,
+        paymentMethod: o.paymentMethod,
+        marketLocation: o.marketLocation,
+        deliveryType: o.deliveryType,
+        createdAt: o.createdAt
+      })), "ORDERS") + "\n\n";
+    }
+
+    // Budgets
+    const budgets = await Budget.find({}).populate("user", "name email").lean();
+    if (budgets.length > 0) {
+      csvContent += arrayToCSV(budgets.map(b => ({
+        id: b._id.toString(),
+        userName: b.user?.name || "",
+        userEmail: b.user?.email || "",
+        dailyLimit: b.dailyLimit,
+        weeklyLimit: b.weeklyLimit,
+        alertThreshold: b.alertThreshold,
+        currency: b.currency
+      })), "BUDGETS") + "\n\n";
+    }
+
+    // Meals
+    const meals = await Meal.find({}).populate("user", "name email").lean();
+    if (meals.length > 0) {
+      csvContent += arrayToCSV(meals.map(m => ({
+        id: m._id.toString(),
+        userName: m.user?.name || "",
+        userEmail: m.user?.email || "",
+        mealName: m.mealName || m.name,
+        calories: m.calories,
+        estimatedCost: m.estimatedCost || "",
+        createdAt: m.createdAt
+      })), "MEALS") + "\n\n";
+    }
+
+    const filename = `mealwise-full-backup-${new Date().toISOString().split("T")[0]}.csv`;
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Type", "text/csv");
+    res.send(csvContent);
+
+  } catch (error) {
+    console.error("Admin export CSV error:", error);
+    res.status(500).json({ message: "Error exporting database" });
+  }
+};
+
+// POST /api/admin/restore - Restore entire database from JSON (Admin only)
+export const importAdminJSON = async (req, res) => {
+  try {
+    const backupData = req.body;
+
+    // Validate backup data
+    if (!backupData || !backupData.version || backupData.type !== "admin_full_backup") {
+      return res.status(400).json({ message: "Invalid admin backup file format" });
+    }
+
+    const results = { restored: [], errors: [], skipped: [] };
+
+    // Restore Products (merge by name per seller)
+    if (backupData.data?.products && backupData.data.products.length > 0) {
+      try {
+        let newCount = 0;
+        for (const product of backupData.data.products) {
+          const existing = await Product.findOne({ 
+            seller: product.seller, 
+            name: product.name 
+          });
+          if (!existing) {
+            await Product.create({
+              name: product.name,
+              description: product.description,
+              price: product.price,
+              quantity: product.quantity,
+              unit: product.unit,
+              category: product.category,
+              seller: product.seller,
+              marketLocation: product.marketLocation,
+              isAvailable: product.isAvailable,
+              lowStockThreshold: product.lowStockThreshold
+            });
+            newCount++;
+          }
+        }
+        results.restored.push(`products (${newCount} new)`);
+      } catch (e) {
+        console.error("Error restoring products:", e);
+        results.errors.push("products");
+      }
+    }
+
+    // Restore Budgets (upsert by user)
+    if (backupData.data?.budgets && backupData.data.budgets.length > 0) {
+      try {
+        let count = 0;
+        for (const budget of backupData.data.budgets) {
+          await Budget.findOneAndUpdate(
+            { user: budget.user },
+            {
+              dailyLimit: budget.dailyLimit,
+              weeklyLimit: budget.weeklyLimit,
+              alertThreshold: budget.alertThreshold,
+              currency: budget.currency
+            },
+            { upsert: true }
+          );
+          count++;
+        }
+        results.restored.push(`budgets (${count})`);
+      } catch (e) {
+        console.error("Error restoring budgets:", e);
+        results.errors.push("budgets");
+      }
+    }
+
+    // Restore Meals (merge by name per user)
+    if (backupData.data?.meals && backupData.data.meals.length > 0) {
+      try {
+        let newCount = 0;
+        for (const meal of backupData.data.meals) {
+          const existing = await Meal.findOne({ 
+            user: meal.user, 
+            mealName: meal.mealName || meal.name 
+          });
+          if (!existing) {
+            await Meal.create({
+              user: meal.user,
+              mealName: meal.mealName || meal.name,
+              name: meal.name,
+              description: meal.description,
+              calories: meal.calories,
+              macros: meal.macros,
+              estimatedCost: meal.estimatedCost,
+              ingredients: meal.ingredients
+            });
+            newCount++;
+          }
+        }
+        results.restored.push(`meals (${newCount} new)`);
+      } catch (e) {
+        console.error("Error restoring meals:", e);
+        results.errors.push("meals");
+      }
+    }
+
+    // Note: We don't restore users or orders as they are sensitive
+    results.skipped.push("users (security reasons)", "orders (transaction history preserved)");
+
+    res.json({
+      message: "Admin restore completed",
+      restored: results.restored,
+      errors: results.errors,
+      skipped: results.skipped
+    });
+
+  } catch (error) {
+    console.error("Admin import JSON error:", error);
+    res.status(500).json({ message: "Error restoring database" });
+  }
+};

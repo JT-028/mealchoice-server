@@ -22,6 +22,11 @@ import {
   deactivateCustomer,
   activateCustomer
 } from "../controllers/adminController.js";
+import {
+  exportAdminJSON,
+  exportAdminCSV,
+  importAdminJSON
+} from "../controllers/backupController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -31,6 +36,11 @@ router.use(protect, authorize("admin"));
 
 // Dashboard
 router.get("/stats", getStats);
+
+// Backup & Restore (full database)
+router.get("/backup/json", exportAdminJSON);
+router.get("/backup/csv", exportAdminCSV);
+router.post("/restore", importAdminJSON);
 
 // Seller management
 router.get("/sellers/pending", getPendingSellers);

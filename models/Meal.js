@@ -23,6 +23,7 @@ const mealSchema = new mongoose.Schema({
   },
   estimatedCost: Number,
   ingredients: [String],
+  imageUrl: String,
   createdAt: {
     type: Date,
     default: Date.now,

@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
-import { enrichWithPexelsImages } from "./pexelsService.js";
+import { enrichWithMealDbImages } from "./mealDbService.js";
 
 dotenv.config();
 
@@ -26,11 +26,16 @@ export const getAIRecommendations = async (userData, availableProducts = []) => 
         const systemPrompt = `You are a professional nutritionist and meal planner for "Mealwise", an app that helps users find healthy meals based on their preferences and budget.
         Your goal is to provide personalized meal recommendations based on the user's health data, dietary restrictions, and budget.
         
+        IMPORTANT: For mealName, use SIMPLE, COMMON dish names that are easy to search for images.
+        - GOOD: "Grilled Chicken Salad", "Beef Stir Fry", "Salmon with Rice", "Vegetable Pasta", "Oatmeal with Berries"
+        - BAD: "Mediterranean Herb-Crusted Free-Range Chicken", "Artisan Fusion Bowl", "Chef's Special Delight"
+        Keep meal names to 2-4 words maximum, focusing on the main ingredient and cooking style.
+        
         Respond ONLY with a valid JSON object in the following format:
         {
             "recommendations": [
                 {
-                    "mealName": "Name of the meal",
+                    "mealName": "Simple meal name (2-4 words)",
                     "description": "Brief description of why this is good for the user",
                     "calories": number,
                     "macros": { "protein": "g", "carbs": "g", "fats": "g" },
@@ -79,8 +84,8 @@ export const getAIRecommendations = async (userData, availableProducts = []) => 
         const content = response.choices[0].message.content;
         const parsedResponse = JSON.parse(content);
         
-        // Enrich with Pexels images
-        const enrichedResponse = await enrichWithPexelsImages(parsedResponse, "recommendations");
+        // Enrich with TheMealDB images
+        const enrichedResponse = await enrichWithMealDbImages(parsedResponse, "recommendations");
         return enrichedResponse;
     } catch (error) {
         console.error("OpenRouter AI Error:", error);
@@ -101,11 +106,16 @@ export const getAIMealPlan = async (userData) => {
         Your goal is to provide a 7-day weekly meal plan (Sunday to Saturday).
         Each day MUST have Breakfast, Lunch, and Dinner.
         
+        IMPORTANT: For mealName, use SIMPLE, COMMON dish names that are easy to search for images.
+        - GOOD: "Scrambled Eggs", "Grilled Chicken", "Pasta Carbonara", "Greek Salad", "Banana Pancakes"
+        - BAD: "Chef's Morning Sunrise Platter", "Mediterranean Fusion Delight", "Artisan Protein Bowl"
+        Keep meal names to 2-4 words maximum, focusing on the main ingredient and cooking style.
+        
         Respond ONLY with a valid JSON object in the following format:
         {
             "weekPlan": {
                 "Sunday": { 
-                    "breakfast": { "mealName": "", "calories": 0, "description": "" }, 
+                    "breakfast": { "mealName": "Simple name", "calories": 0, "description": "" }, 
                     "lunch": { ... }, 
                     "dinner": { ... } 
                 },
@@ -153,8 +163,8 @@ export const getAIMealPlan = async (userData) => {
         const content = response.choices[0].message.content;
         const parsedResponse = JSON.parse(content);
         
-        // Enrich with Pexels images
-        const enrichedResponse = await enrichWithPexelsImages(parsedResponse, "mealPlan");
+        // Enrich with TheMealDB images
+        const enrichedResponse = await enrichWithMealDbImages(parsedResponse, "mealPlan");
         return enrichedResponse;
     } catch (error) {
         console.error("OpenRouter AI Meal Plan Error:", error);

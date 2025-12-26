@@ -42,7 +42,7 @@ const productSchema = new mongoose.Schema({
   },
   marketLocation: {
     type: String,
-    enum: ["San Nicolas Market", "Pampanga Market"],
+    enum: ["San Nicolas Market", "Pampang Public Market"],
     required: true
   },
   isAvailable: {

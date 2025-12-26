@@ -32,7 +32,7 @@ export const getStats = async (req, res) => {
     });
     const pampangaSellers = await User.countDocuments({
       role: "seller",
-      marketLocation: "Pampanga Market",
+      marketLocation: "Pampang Public Market",
       isVerified: true
     });
 
@@ -233,7 +233,7 @@ export const verifySeller = async (req, res) => {
       });
     }
 
-    const validMarkets = ["San Nicolas Market", "Pampanga Market"];
+    const validMarkets = ["San Nicolas Market", "Pampang Public Market"];
     if (!validMarkets.includes(marketLocation)) {
       return res.status(400).json({
         success: false,

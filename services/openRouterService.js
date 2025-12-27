@@ -14,6 +14,16 @@ const openai = new OpenAI({
 });
 
 /**
+ * Calculate target daily calories based on user preferences
+ * Uses the average of calorieMin and calorieMax, or a sensible default
+ */
+const calculateDailyCalorieTarget = (preferences) => {
+    const min = preferences.calorieMin || 1200;
+    const max = preferences.calorieMax || 2500;
+    return Math.round((min + max) / 2);
+};
+
+/**
  * Get personalized meal recommendations from OpenRouter
  * @param {Object} userData - User preferences and health data
  * @param {Array} availableProducts - List of available products for context (optional)
@@ -23,8 +33,18 @@ export const getAIRecommendations = async (userData, availableProducts = []) => 
     try {
         const { preferences, name } = userData;
         
+        // Calculate the user's daily calorie target
+        const dailyCalorieTarget = calculateDailyCalorieTarget(preferences);
+        const perMealCalories = Math.round(dailyCalorieTarget / 3);
+        
         const systemPrompt = `You are a professional nutritionist and meal planner for "Mealwise", an app that helps users find healthy meals based on their preferences and budget.
         Your goal is to provide personalized meal recommendations based on the user's health data, dietary restrictions, and budget.
+        
+        CRITICAL CALORIE REQUIREMENT:
+        - The user's DAILY calorie target is ${dailyCalorieTarget} calories.
+        - Each meal recommendation should be approximately ${perMealCalories} calories (assuming 3 meals per day).
+        - Ensure the "calories" field in each recommendation reflects this target range (${perMealCalories - 100} to ${perMealCalories + 100} calories per meal).
+        - Do NOT recommend meals with only 200-400 calories unless they are snacks - full meals should be ${perMealCalories} calories.
         
         IMPORTANT: For mealName, use SIMPLE, COMMON dish names that are easy to search for images.
         - GOOD: "Grilled Chicken Salad", "Beef Stir Fry", "Salmon with Rice", "Vegetable Pasta", "Oatmeal with Berries"
@@ -39,8 +59,11 @@ export const getAIRecommendations = async (userData, availableProducts = []) => 
                     "description": "Brief description of why this is good for the user",
                     "calories": number,
                     "macros": { "protein": "g", "carbs": "g", "fats": "g" },
+                    "nutrition": { "fiber": "g", "sodium": "mg", "sugar": "g" },
                     "estimatedCost": number,
-                    "ingredients": ["ingredient 1", "ingredient 2"]
+                    "ingredients": ["ingredient 1", "ingredient 2"],
+                    "healthBenefits": ["benefit 1", "benefit 2", "benefit 3"],
+                    "instructions": ["Step 1: ...", "Step 2: ...", "Step 3: ..."]
                 }
             ],
             "nutritionalAdvice": "General advice based on their health data",
@@ -57,11 +80,16 @@ export const getAIRecommendations = async (userData, availableProducts = []) => 
         - Sex: ${preferences.sex}
         - Activity Level: ${preferences.activityLevel}
         
+        Calorie Goals:
+        - Daily Calorie Target: ${dailyCalorieTarget} calories
+        - Target per Meal: ~${perMealCalories} calories
+        - Calorie Range: ${preferences.calorieMin || 1200} - ${preferences.calorieMax || 2500} calories/day
+        
         Dietary Preferences:
-        - Restrictions: ${preferences.dietaryRestrictions.join(", ") || "None"}
-        - Preferred Cuisines: ${preferences.preferredCuisines.join(", ") || "Any"}
-        - Preferred Meal Types: ${preferences.preferredMealTypes.join(", ") || "Any"}
-        - Avoided Ingredients: ${preferences.avoidedIngredients.join(", ") || "None"}
+        - Restrictions: ${preferences.dietaryRestrictions?.join(", ") || "None"}
+        - Preferred Cuisines: ${preferences.preferredCuisines?.join(", ") || "Any"}
+        - Preferred Meal Types: ${preferences.preferredMealTypes?.join(", ") || "Any"}
+        - Avoided Ingredients: ${preferences.avoidedIngredients?.join(", ") || "None"}
         
         Budget:
         - Budget per meal: ${preferences.budgetPerMeal || "Not specified"}
@@ -70,7 +98,7 @@ export const getAIRecommendations = async (userData, availableProducts = []) => 
         Available Products in Market (for reference):
         ${availableProducts.map(p => `- ${p.name} ($${p.price} per ${p.unit})`).join("\n")}
         
-        Please provide 3 personalized meal recommendations.`;
+        Please provide 3 personalized meal recommendations that each contain approximately ${perMealCalories} calories.`;
 
         const response = await openai.chat.completions.create({
             model: "xiaomi/mimo-v2-flash:free",
@@ -102,9 +130,26 @@ export const getAIMealPlan = async (userData) => {
     try {
         const { preferences, name } = userData;
         
+        // Calculate the user's daily calorie target
+        const dailyCalorieTarget = calculateDailyCalorieTarget(preferences);
+        // Typical meal distribution: Breakfast 25%, Lunch 35%, Dinner 40%
+        const breakfastCalories = Math.round(dailyCalorieTarget * 0.25);
+        const lunchCalories = Math.round(dailyCalorieTarget * 0.35);
+        const dinnerCalories = Math.round(dailyCalorieTarget * 0.40);
+        
         const systemPrompt = `You are a professional nutritionist and meal planner for "Mealwise".
         Your goal is to provide a 7-day weekly meal plan (Sunday to Saturday).
         Each day MUST have Breakfast, Lunch, and Dinner.
+        
+        CRITICAL CALORIE REQUIREMENT:
+        - The user's DAILY calorie target is ${dailyCalorieTarget} calories.
+        - Each day's meals MUST add up to approximately ${dailyCalorieTarget} calories total.
+        - Target calorie distribution per meal:
+          * Breakfast: ~${breakfastCalories} calories (25% of daily)
+          * Lunch: ~${lunchCalories} calories (35% of daily)
+          * Dinner: ~${dinnerCalories} calories (40% of daily)
+        - The "avgCalories" in weeklyMacros should be ${dailyCalorieTarget}.
+        - Do NOT create meals with only 200-400 calories - ensure each meal meets its target.
         
         IMPORTANT: For mealName, use SIMPLE, COMMON dish names that are easy to search for images.
         - GOOD: "Scrambled Eggs", "Grilled Chicken", "Pasta Carbonara", "Greek Salad", "Banana Pancakes"
@@ -115,9 +160,9 @@ export const getAIMealPlan = async (userData) => {
         {
             "weekPlan": {
                 "Sunday": { 
-                    "breakfast": { "mealName": "Simple name", "calories": 0, "description": "" }, 
-                    "lunch": { ... }, 
-                    "dinner": { ... } 
+                    "breakfast": { "mealName": "Simple name", "calories": ${breakfastCalories}, "description": "" }, 
+                    "lunch": { "mealName": "Simple name", "calories": ${lunchCalories}, "description": "" }, 
+                    "dinner": { "mealName": "Simple name", "calories": ${dinnerCalories}, "description": "" } 
                 },
                 "Monday": { ... },
                 "Tuesday": { ... },
@@ -126,7 +171,7 @@ export const getAIMealPlan = async (userData) => {
                 "Friday": { ... },
                 "Saturday": { ... }
             },
-            "weeklyMacros": { "avgProtein": "g", "avgCarbs": "g", "avgFats": "g", "avgCalories": 0 },
+            "weeklyMacros": { "avgProtein": "g", "avgCarbs": "g", "avgFats": "g", "avgCalories": ${dailyCalorieTarget} },
             "advice": "General advice for the week"
         }
         
@@ -140,16 +185,23 @@ export const getAIMealPlan = async (userData) => {
         - Sex: ${preferences.sex}
         - Activity Level: ${preferences.activityLevel}
         
+        Calorie Goals:
+        - Daily Calorie Target: ${dailyCalorieTarget} calories
+        - Breakfast Target: ~${breakfastCalories} calories
+        - Lunch Target: ~${lunchCalories} calories
+        - Dinner Target: ~${dinnerCalories} calories
+        - Calorie Range: ${preferences.calorieMin || 1200} - ${preferences.calorieMax || 2500} calories/day
+        
         Dietary Preferences:
-        - Restrictions: ${preferences.dietaryRestrictions.join(", ") || "None"}
-        - Preferred Cuisines: ${preferences.preferredCuisines.join(", ") || "Any"}
-        - Preferred Meal Types: ${preferences.preferredMealTypes.join(", ") || "Any"}
-        - Avoided Ingredients: ${preferences.avoidedIngredients.join(", ") || "None"}
+        - Restrictions: ${preferences.dietaryRestrictions?.join(", ") || "None"}
+        - Preferred Cuisines: ${preferences.preferredCuisines?.join(", ") || "Any"}
+        - Preferred Meal Types: ${preferences.preferredMealTypes?.join(", ") || "Any"}
+        - Avoided Ingredients: ${preferences.avoidedIngredients?.join(", ") || "None"}
         
         Budget:
         - Budget per meal: ${preferences.budgetPerMeal || "Not specified"}
         
-        Please provide a complete 7-day meal plan tailored to these goals.`;
+        Please provide a complete 7-day meal plan where each day totals approximately ${dailyCalorieTarget} calories.`;
 
         const response = await openai.chat.completions.create({
             model: "xiaomi/mimo-v2-flash:free",

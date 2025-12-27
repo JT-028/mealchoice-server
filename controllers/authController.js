@@ -147,7 +147,8 @@ export const login = async (req, res) => {
         role: user.role,
         marketLocation: user.marketLocation,
         isVerified: user.isVerified,
-        hasCompletedOnboarding: user.hasCompletedOnboarding
+        hasCompletedOnboarding: user.hasCompletedOnboarding,
+        theme: user.theme
       }
     });
   } catch (error) {
@@ -183,6 +184,7 @@ export const getProfile = async (req, res) => {
         marketLocation: user.marketLocation,
         isVerified: user.isVerified,
         hasCompletedOnboarding: user.hasCompletedOnboarding,
+        theme: user.theme,
         createdAt: user.createdAt
       }
     });

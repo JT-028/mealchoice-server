@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema({
   // For sellers
   marketLocation: {
     type: String,
-    enum: ["San Nicolas Market", "Pampanga Market", null],
+    enum: ["San Nicolas Market", "Pampang Public Market", null],
     default: null
   },
   stallName: {

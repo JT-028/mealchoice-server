@@ -156,6 +156,9 @@ export const getAIMealPlan = async (userData) => {
         - BAD: "Chef's Morning Sunrise Platter", "Mediterranean Fusion Delight", "Artisan Protein Bowl"
         Keep meal names to 2-4 words maximum, focusing on the main ingredient and cooking style.
         
+        IMPORTANT: Each meal MUST include an "ingredients" array with 3-8 specific ingredients needed to prepare that meal.
+        Use simple, common ingredient names (e.g., "chicken breast", "olive oil", "garlic", "rice").
+        
         Respond ONLY with a valid JSON object in the following format:
         {
             "weekPlan": {

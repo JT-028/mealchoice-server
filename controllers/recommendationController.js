@@ -1,6 +1,6 @@
 import User from "../models/User.js";
 import Product from "../models/Product.js";
-import { getAIRecommendations, getAIMealPlan } from "../services/openRouterService.js";
+import { getAIRecommendations, getAIMealPlan, getAIRecommendationsByCategory } from "../services/openRouterService.js";
 
 /**
  * @desc    Get personalized meal recommendations
@@ -38,6 +38,61 @@ export const getRecommendations = async (req, res) => {
         });
     } catch (error) {
         console.error("Get recommendations error:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message || "Server error fetching recommendations"
+        });
+    }
+};
+
+/**
+ * @desc    Get personalized meal recommendations by category
+ * @route   GET /api/recommendations/generate/:mealType
+ * @access  Private
+ */
+export const getRecommendationsByCategory = async (req, res) => {
+    try {
+        const { mealType } = req.params;
+
+        // Validate meal type
+        const validMealTypes = ['breakfast', 'lunch', 'dinner', 'snacks'];
+        if (!validMealTypes.includes(mealType)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid meal type. Must be one of: ${validMealTypes.join(', ')}`
+            });
+        }
+
+        const user = await User.findById(req.user._id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        if (!user.hasCompletedOnboarding) {
+            return res.status(400).json({
+                success: false,
+                message: "Please complete onboarding to get personalized recommendations"
+            });
+        }
+
+        // Fetch some products for context (limit to 20 for prompt size)
+        const availableProducts = await Product.find({ isAvailable: true })
+            .limit(20)
+            .select("name price unit category");
+
+        const recommendations = await getAIRecommendationsByCategory(user, mealType, availableProducts);
+
+        res.json({
+            success: true,
+            mealType,
+            data: recommendations
+        });
+    } catch (error) {
+        console.error("Get recommendations by category error:", error);
         res.status(500).json({
             success: false,
             message: error.message || "Server error fetching recommendations"

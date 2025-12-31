@@ -24,6 +24,15 @@ const mealSchema = new mongoose.Schema({
   estimatedCost: Number,
   ingredients: [String],
   imageUrl: String,
+  scheduledDate: {
+    type: Date,
+    default: null,
+  },
+  mealType: {
+    type: String,
+    enum: ['breakfast', 'lunch', 'dinner', 'snacks', null],
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

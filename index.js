@@ -27,6 +27,11 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.error("FATAL ERROR: JWT_SECRET is not defined in production environment.");
+  process.exit(1);
+}
+
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;

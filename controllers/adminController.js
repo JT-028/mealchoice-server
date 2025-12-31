@@ -630,7 +630,7 @@ export const getAdmins = async (req, res) => {
     );
 
     const admins = await User.find({ role: "admin" })
-      .select("name email isMainAdmin isActive createdAt")
+      .select("name email phone isMainAdmin isActive createdAt")
       .sort({ isMainAdmin: -1, createdAt: 1 });
 
     // Also check by email in case DB flag not set yet
@@ -658,7 +658,7 @@ export const getAdmins = async (req, res) => {
 // @access  Private (Admin - Main admin only)
 export const createAdmin = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, phone, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -680,6 +680,7 @@ export const createAdmin = async (req, res) => {
     const admin = await User.create({
       name,
       email,
+      phone: phone || null,
       password,
       role: "admin",
       isMainAdmin: false,
@@ -695,6 +696,7 @@ export const createAdmin = async (req, res) => {
         _id: admin._id,
         name: admin.name,
         email: admin.email,
+        phone: admin.phone,
         isMainAdmin: admin.isMainAdmin
       }
     });
@@ -712,6 +714,82 @@ export const createAdmin = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error creating admin"
+    });
+  }
+};
+
+// @desc    Update sub-admin account
+// @route   PUT /api/admin/admins/:id
+// @access  Private (Admin)
+export const updateAdmin = async (req, res) => {
+  try {
+    const { name, email, phone } = req.body;
+
+    const admin = await User.findById(req.params.id);
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found"
+      });
+    }
+
+    if (admin.role !== "admin") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not an admin"
+      });
+    }
+
+    // Prevent editing main admin (by flag or by email)
+    const mainAdminEmail = "admin@mealwise.com";
+    if (admin.isMainAdmin || admin.email === mainAdminEmail) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot edit the main admin account"
+      });
+    }
+
+    // Check if new email already exists (if email is being changed)
+    if (email && email !== admin.email) {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: "Email already registered"
+        });
+      }
+      admin.email = email;
+    }
+
+    if (name) admin.name = name;
+    if (phone !== undefined) admin.phone = phone || null;
+
+    await admin.save();
+
+    res.json({
+      success: true,
+      message: "Admin updated successfully",
+      admin: {
+        _id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone,
+        isMainAdmin: admin.isMainAdmin
+      }
+    });
+  } catch (error) {
+    console.error("Update admin error:", error);
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: messages[0]
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: "Server error updating admin"
     });
   }
 };

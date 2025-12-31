@@ -13,12 +13,12 @@ export const getMeals = async (req, res) => {
 };
 
 export const createMeal = async (req, res) => {
-  const { mealName, name, calories, description, macros, estimatedCost, ingredients, imageUrl } = req.body;
-  
+  const { mealName, name, calories, description, macros, estimatedCost, ingredients, imageUrl, scheduledDate, mealType } = req.body;
+
   // Robust field handling
   const finalMealName = mealName || name;
-  
-  const meal = new Meal({ 
+
+  const meal = new Meal({
     user: req.user._id,
     mealName: finalMealName,
     name: finalMealName, // Populate both for compatibility
@@ -27,7 +27,9 @@ export const createMeal = async (req, res) => {
     macros,
     estimatedCost,
     ingredients,
-    imageUrl
+    imageUrl,
+    scheduledDate: scheduledDate || null,
+    mealType: mealType || null,
   });
 
   try {
@@ -44,14 +46,27 @@ export const createMeal = async (req, res) => {
 export const deleteMeal = async (req, res) => {
   try {
     const meal = await Meal.findOne({ _id: req.params.id, user: req.user._id });
-    
+
     if (!meal) {
       return res.status(404).json({ success: false, message: 'Meal not found' });
     }
-    
+
     await Meal.deleteOne({ _id: req.params.id });
     res.json({ success: true, message: 'Meal deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const deleteAllMeals = async (req, res) => {
+  try {
+    const result = await Meal.deleteMany({ user: req.user._id });
+    res.json({
+      success: true,
+      message: `${result.deletedCount} meals deleted successfully`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

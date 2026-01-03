@@ -198,7 +198,7 @@ export const exportOrders = async (req, res) => {
 // @access  Private (Seller only)
 export const updateSellerSettings = async (req, res) => {
   try {
-    const { operatingHours, notifyNewOrders, notifyLowStock } = req.body;
+    const { operatingHours, notifyNewOrders, notifyLowStock, acceptsQR, hasOwnDelivery } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -222,6 +222,8 @@ export const updateSellerSettings = async (req, res) => {
 
     if (notifyNewOrders !== undefined) user.notifyNewOrders = notifyNewOrders;
     if (notifyLowStock !== undefined) user.notifyLowStock = notifyLowStock;
+    if (acceptsQR !== undefined) user.acceptsQR = acceptsQR;
+    if (hasOwnDelivery !== undefined) user.hasOwnDelivery = hasOwnDelivery;
 
     await user.save();
 
@@ -231,7 +233,9 @@ export const updateSellerSettings = async (req, res) => {
       settings: {
         operatingHours: user.operatingHours,
         notifyNewOrders: user.notifyNewOrders,
-        notifyLowStock: user.notifyLowStock
+        notifyLowStock: user.notifyLowStock,
+        acceptsQR: user.acceptsQR,
+        hasOwnDelivery: user.hasOwnDelivery
       }
     });
   } catch (error) {
@@ -387,6 +391,8 @@ export const getSettings = async (req, res) => {
       settings.notifyNewOrders = user.notifyNewOrders;
       settings.notifyLowStock = user.notifyLowStock;
       settings.paymentQR = user.paymentQR;
+      settings.acceptsQR = user.acceptsQR;
+      settings.hasOwnDelivery = user.hasOwnDelivery;
     }
 
     res.json({ success: true, settings });
@@ -413,7 +419,7 @@ export const getSellersInfo = async (req, res) => {
     const sellers = await User.find({
       _id: { $in: sellerIds },
       role: "seller"
-    }).select("name marketLocation paymentQR");
+    }).select("name marketLocation paymentQR acceptsQR hasOwnDelivery");
 
     res.json({
       success: true,

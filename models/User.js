@@ -68,6 +68,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  // Payment & Delivery Settings
+  acceptsQR: {
+    type: Boolean,
+    default: false
+  },
+  hasOwnDelivery: {
+    type: Boolean,
+    default: false
+  },
   // Notification preferences
   notifyNewOrders: {
     type: Boolean,

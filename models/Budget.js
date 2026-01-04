@@ -19,9 +19,8 @@ const budgetSchema = new mongoose.Schema({
   },
   alertThreshold: {
     type: Number,
-    default: 80, // Alert when 80% of budget is used
-    min: [0, "Threshold cannot be negative"],
-    max: [100, "Threshold cannot exceed 100"]
+    default: 300, // Alert when remaining budget is below this amount
+    min: [0, "Threshold cannot be negative"]
   },
   currency: {
     type: String,

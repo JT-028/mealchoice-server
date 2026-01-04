@@ -14,7 +14,7 @@ export const getBudget = async (req, res) => {
         user: req.user._id,
         dailyLimit: 500,
         weeklyLimit: 3000,
-        alertThreshold: 80
+        alertThreshold: 300
       });
     }
 
@@ -85,7 +85,7 @@ export const getSpending = async (req, res) => {
         user: req.user._id,
         dailyLimit: 500,
         weeklyLimit: 3000,
-        alertThreshold: 80
+        alertThreshold: 300
       });
     }
 
@@ -116,6 +116,9 @@ export const getSpending = async (req, res) => {
     // Calculate remaining budgets
     const dailyRemaining = Math.max(0, budget.dailyLimit - todaySpent);
     const weeklyRemaining = Math.max(0, budget.weeklyLimit - weeklySpent);
+    
+    // Check if balance is low (equal to or below threshold)
+    const isLowBalance = dailyRemaining <= budget.alertThreshold;
 
     res.json({
       success: true,
@@ -126,7 +129,8 @@ export const getSpending = async (req, res) => {
         weeklyLimit: budget.weeklyLimit,
         dailyRemaining,
         weeklyRemaining,
-        alertThreshold: budget.alertThreshold
+        alertThreshold: budget.alertThreshold,
+        isLowBalance
       }
     });
   } catch (error) {

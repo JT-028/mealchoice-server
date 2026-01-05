@@ -646,97 +646,174 @@ export const importAdminJSON = async (req, res) => {
 
     const results = { restored: [], errors: [], skipped: [] };
 
-    // Restore Products (merge by name per seller)
+    // Restore Products - DELETE existing and INSERT from backup (full sync)
     if (backupData.data?.products && backupData.data.products.length > 0) {
       try {
-        let newCount = 0;
-        for (const product of backupData.data.products) {
-          const existing = await Product.findOne({ 
-            seller: product.seller, 
-            name: product.name 
-          });
-          if (!existing) {
-            await Product.create({
-              name: product.name,
-              description: product.description,
-              price: product.price,
-              quantity: product.quantity,
-              unit: product.unit,
-              category: product.category,
-              seller: product.seller,
-              marketLocation: product.marketLocation,
-              isAvailable: product.isAvailable,
-              lowStockThreshold: product.lowStockThreshold
-            });
-            newCount++;
-          }
+        // Get all unique seller IDs from backup
+        const sellerIds = [...new Set(backupData.data.products.map(p => p.seller?.toString()).filter(Boolean))];
+        
+        // Delete all products from sellers in the backup (to allow deleted products to reappear)
+        if (sellerIds.length > 0) {
+          await Product.deleteMany({ seller: { $in: sellerIds } });
         }
-        results.restored.push(`products (${newCount} new)`);
+        
+        // Insert all products from backup
+        const productsToInsert = backupData.data.products.map(p => ({
+          _id: p._id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          quantity: p.quantity,
+          unit: p.unit,
+          category: p.category,
+          seller: p.seller,
+          marketLocation: p.marketLocation,
+          isAvailable: p.isAvailable,
+          lowStockThreshold: p.lowStockThreshold,
+          image: p.image,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt
+        }));
+        
+        await Product.insertMany(productsToInsert, { ordered: false });
+        results.restored.push(`products (${productsToInsert.length} restored)`);
       } catch (e) {
         console.error("Error restoring products:", e);
         results.errors.push("products");
       }
     }
 
-    // Restore Budgets (upsert by user)
+    // Restore Budgets - DELETE and INSERT (full sync)
     if (backupData.data?.budgets && backupData.data.budgets.length > 0) {
       try {
-        let count = 0;
-        for (const budget of backupData.data.budgets) {
-          await Budget.findOneAndUpdate(
-            { user: budget.user },
-            {
-              dailyLimit: budget.dailyLimit,
-              weeklyLimit: budget.weeklyLimit,
-              alertThreshold: budget.alertThreshold,
-              currency: budget.currency
-            },
-            { upsert: true }
-          );
-          count++;
+        // Get all user IDs from backup budgets
+        const userIds = [...new Set(backupData.data.budgets.map(b => b.user?.toString()).filter(Boolean))];
+        
+        // Delete existing budgets for these users
+        if (userIds.length > 0) {
+          await Budget.deleteMany({ user: { $in: userIds } });
         }
-        results.restored.push(`budgets (${count})`);
+        
+        // Insert all budgets from backup
+        const budgetsToInsert = backupData.data.budgets.map(b => ({
+          _id: b._id,
+          user: b.user,
+          dailyLimit: b.dailyLimit,
+          weeklyLimit: b.weeklyLimit,
+          alertThreshold: b.alertThreshold,
+          currency: b.currency
+        }));
+        
+        await Budget.insertMany(budgetsToInsert, { ordered: false });
+        results.restored.push(`budgets (${budgetsToInsert.length} restored)`);
       } catch (e) {
         console.error("Error restoring budgets:", e);
         results.errors.push("budgets");
       }
     }
 
-    // Restore Meals (merge by name per user)
+    // Restore Meals - DELETE and INSERT (full sync)
     if (backupData.data?.meals && backupData.data.meals.length > 0) {
       try {
-        let newCount = 0;
-        for (const meal of backupData.data.meals) {
-          const existing = await Meal.findOne({ 
-            user: meal.user, 
-            mealName: meal.mealName || meal.name 
-          });
-          if (!existing) {
-            await Meal.create({
-              user: meal.user,
-              mealName: meal.mealName || meal.name,
-              name: meal.name,
-              description: meal.description,
-              calories: meal.calories,
-              macros: meal.macros,
-              estimatedCost: meal.estimatedCost,
-              ingredients: meal.ingredients
-            });
-            newCount++;
-          }
+        // Get all user IDs from backup meals
+        const userIds = [...new Set(backupData.data.meals.map(m => m.user?.toString()).filter(Boolean))];
+        
+        // Delete existing meals for these users
+        if (userIds.length > 0) {
+          await Meal.deleteMany({ user: { $in: userIds } });
         }
-        results.restored.push(`meals (${newCount} new)`);
+        
+        // Insert all meals from backup
+        const mealsToInsert = backupData.data.meals.map(m => ({
+          _id: m._id,
+          user: m.user,
+          mealName: m.mealName || m.name,
+          name: m.name,
+          description: m.description,
+          calories: m.calories,
+          macros: m.macros,
+          estimatedCost: m.estimatedCost,
+          ingredients: m.ingredients,
+          createdAt: m.createdAt,
+          updatedAt: m.updatedAt
+        }));
+        
+        await Meal.insertMany(mealsToInsert, { ordered: false });
+        results.restored.push(`meals (${mealsToInsert.length} restored)`);
       } catch (e) {
         console.error("Error restoring meals:", e);
         results.errors.push("meals");
       }
     }
 
-    // Note: We don't restore users or orders as they are sensitive
-    results.skipped.push("users (security reasons)", "orders (transaction history preserved)");
+    // Restore Orders - DELETE and INSERT (full sync for complete data integrity)
+    if (backupData.data?.orders && backupData.data.orders.length > 0) {
+      try {
+        // Delete all existing orders
+        await Order.deleteMany({});
+        
+        // Insert all orders from backup
+        const ordersToInsert = backupData.data.orders.map(o => ({
+          _id: o._id,
+          buyer: o.buyer?._id || o.buyer,
+          seller: o.seller?._id || o.seller,
+          items: o.items,
+          total: o.total,
+          status: o.status,
+          paymentMethod: o.paymentMethod,
+          paymentProof: o.paymentProof,
+          marketLocation: o.marketLocation,
+          deliveryType: o.deliveryType,
+          deliveryAddress: o.deliveryAddress,
+          deliveryFee: o.deliveryFee,
+          notes: o.notes,
+          createdAt: o.createdAt,
+          updatedAt: o.updatedAt
+        }));
+        
+        await Order.insertMany(ordersToInsert, { ordered: false });
+        results.restored.push(`orders (${ordersToInsert.length} restored)`);
+      } catch (e) {
+        console.error("Error restoring orders:", e);
+        results.errors.push("orders");
+      }
+    }
+
+    // Restore Users (update existing, create new - but preserve passwords)
+    if (backupData.data?.users && backupData.data.users.length > 0) {
+      try {
+        let updatedCount = 0;
+        for (const userData of backupData.data.users) {
+          // Update user data but preserve password and security fields
+          await User.findByIdAndUpdate(
+            userData._id,
+            {
+              name: userData.name,
+              phone: userData.phone,
+              theme: userData.theme,
+              savedAddresses: userData.savedAddresses,
+              preferences: userData.preferences,
+              operatingHours: userData.operatingHours,
+              customCategories: userData.customCategories,
+              notifyNewOrders: userData.notifyNewOrders,
+              notifyLowStock: userData.notifyLowStock,
+              isActive: userData.isActive,
+              isVerified: userData.isVerified,
+              hasCompletedOnboarding: userData.hasCompletedOnboarding
+            },
+            { new: true }
+          );
+          updatedCount++;
+        }
+        results.restored.push(`users (${updatedCount} updated)`);
+      } catch (e) {
+        console.error("Error restoring users:", e);
+        results.errors.push("users");
+      }
+    }
 
     res.json({
-      message: "Admin restore completed",
+      message: "Admin restore completed - database synchronized with backup",
       restored: results.restored,
       errors: results.errors,
       skipped: results.skipped

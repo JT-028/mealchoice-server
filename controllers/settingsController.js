@@ -50,10 +50,10 @@ export const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
+    if (!newPassword) {
       return res.status(400).json({
         success: false,
-        message: "Current password and new password are required"
+        message: "New password is required"
       });
     }
 
@@ -69,12 +69,23 @@ export const changePassword = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    const isMatch = await user.comparePassword(currentPassword);
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Current password is incorrect"
-      });
+    // For admin users, allow password update without current password
+    // For other users, require current password verification
+    if (user.role !== "admin") {
+      if (!currentPassword) {
+        return res.status(400).json({
+          success: false,
+          message: "Current password is required"
+        });
+      }
+
+      const isMatch = await user.comparePassword(currentPassword);
+      if (!isMatch) {
+        return res.status(400).json({
+          success: false,
+          message: "Current password is incorrect"
+        });
+      }
     }
 
     user.password = newPassword;

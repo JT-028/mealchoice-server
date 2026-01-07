@@ -81,6 +81,10 @@ const orderSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isHiddenByBuyer: {
+    type: Boolean,
+    default: false
+  },
   // Delivery options
   deliveryType: {
     type: String,

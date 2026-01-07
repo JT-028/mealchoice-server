@@ -35,6 +35,11 @@ const productSchema = new mongoose.Schema({
     trim: true,
     default: "others"
   },
+  productType: {
+    type: String,
+    enum: ["perishable", "non-perishable"],
+    default: "perishable"
+  },
   seller: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -62,7 +67,7 @@ const productSchema = new mongoose.Schema({
 });
 
 // Virtual for checking if stock is low
-productSchema.virtual("isLowStock").get(function() {
+productSchema.virtual("isLowStock").get(function () {
   return this.quantity <= this.lowStockThreshold;
 });
 

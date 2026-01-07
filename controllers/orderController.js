@@ -202,7 +202,10 @@ export const createOrder = async (req, res) => {
 // @access  Private
 export const getMyOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ buyer: req.user._id })
+    const orders = await Order.find({
+      buyer: req.user._id,
+      isHiddenByBuyer: { $ne: true }
+    })
       .populate("seller", "name")
       .sort({ createdAt: -1 });
 
@@ -697,5 +700,119 @@ export const getSellerAnalytics = async (req, res) => {
       success: false,
       message: "Server error fetching analytics"
     });
+  }
+};
+// @desc    Cancel order by customer
+// @route   PUT /api/orders/:id/cancel-customer
+// @access  Private (Customer)
+export const cancelOrderByCustomer = async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // Check ownership
+    if (order.buyer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+
+    // Only pending or confirmed orders can be cancelled by customer
+    if (!["pending", "confirmed"].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Order cannot be cancelled in its current status: ${order.status}`
+      });
+    }
+
+    // Restore stock
+    for (const item of order.items) {
+      const product = await Product.findById(item.product);
+      if (product) {
+        product.quantity += item.quantity;
+        await product.save();
+      }
+    }
+
+    order.status = "cancelled";
+    order.statusHistory.push({
+      status: "cancelled",
+      timestamp: new Date(),
+      note: reason ? `Cancelled by customer. Reason: ${reason}` : "Cancelled by customer"
+    });
+
+    await order.save();
+
+    res.json({ success: true, message: "Order cancelled successfully", order });
+  } catch (error) {
+    console.error("Cancel order error:", error);
+    res.status(500).json({ success: false, message: "Server error cancelling order" });
+  }
+};
+
+// @desc    Hide order for buyer
+// @route   PUT /api/orders/:id/hide-buyer
+// @access  Private (Customer)
+export const hideOrderForBuyer = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    if (order.buyer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+
+    // Only allow hiding if completed or cancelled
+    if (!["completed", "cancelled"].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Only completed or cancelled orders can be removed from history"
+      });
+    }
+
+    order.isHiddenByBuyer = true;
+    await order.save();
+
+    res.json({ success: true, message: "Order removed from history" });
+  } catch (error) {
+    console.error("Hide order error:", error);
+    res.status(500).json({ success: false, message: "Server error hiding order" });
+  }
+};
+
+// @desc    Bulk hide orders for buyer
+// @route   PUT /api/orders/bulk-hide-buyer
+// @access  Private (Customer)
+export const bulkHideOrdersForBuyer = async (req, res) => {
+  try {
+    const { orderIds } = req.body;
+
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ success: false, message: "Please provide order IDs" });
+    }
+
+    // Update only orders belonging to the user that are completed or cancelled
+    const result = await Order.updateMany(
+      {
+        _id: { $in: orderIds },
+        buyer: req.user._id,
+        status: { $in: ["completed", "cancelled"] }
+      },
+      { isHiddenByBuyer: true }
+    );
+
+    res.json({
+      success: true,
+      message: `${result.modifiedCount} order(s) removed from history`,
+      count: result.modifiedCount
+    });
+  } catch (error) {
+    console.error("Bulk hide error:", error);
+    res.status(500).json({ success: false, message: "Server error during bulk removal" });
   }
 };

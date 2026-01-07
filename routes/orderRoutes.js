@@ -8,7 +8,10 @@ import {
   verifyPayment,
   archiveOrder,
   bulkArchiveOrders,
-  getSellerAnalytics
+  getSellerAnalytics,
+  cancelOrderByCustomer,
+  hideOrderForBuyer,
+  bulkHideOrdersForBuyer
 } from "../controllers/orderController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 import { uploadReceiptImage } from "../middleware/uploadMiddleware.js";
@@ -19,6 +22,9 @@ const router = express.Router();
 // Use .any() to allow dynamic field names for multiple seller receipts
 router.post("/", protect, authorize("customer"), uploadReceiptImage.any(), createOrder);
 router.get("/my-orders", protect, getMyOrders);
+router.put("/bulk-hide-buyer", protect, authorize("customer"), bulkHideOrdersForBuyer);
+router.put("/:id/cancel-customer", protect, authorize("customer"), cancelOrderByCustomer);
+router.put("/:id/hide-buyer", protect, authorize("customer"), hideOrderForBuyer);
 
 // Seller routes
 router.get("/seller", protect, authorize("seller"), getSellerOrders);

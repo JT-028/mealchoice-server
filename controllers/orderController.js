@@ -676,6 +676,32 @@ export const getSellerAnalytics = async (req, res) => {
       ? ((totalRevenue - previousPeriodRevenue) / previousPeriodRevenue) * 100
       : 0;
 
+    // Global Market Comparison (Across all sellers for the same period)
+    const marketComparison = await Order.aggregate([
+      {
+        $match: {
+          status: 'completed',
+          createdAt: dateFilter.createdAt || { $exists: true }
+        }
+      },
+      {
+        $group: {
+          _id: '$marketLocation',
+          revenue: { $sum: '$total' },
+          orders: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Format market comparison to ensure both markets are present
+    const marketData = [
+      { name: 'San Nicolas Market', revenue: 0, orders: 0 },
+      { name: 'Pampang Public Market', revenue: 0, orders: 0 }
+    ].map(m => {
+      const found = marketComparison.find(c => c._id === m.name);
+      return found ? { name: m.name, revenue: found.revenue, orders: found.orders } : m;
+    });
+
     res.json({
       success: true,
       analytics: {
@@ -691,7 +717,8 @@ export const getSellerAnalytics = async (req, res) => {
         paymentBreakdown,
         statusBreakdown,
         topProducts,
-        salesOverTime
+        salesOverTime,
+        marketComparison: marketData
       }
     });
   } catch (error) {

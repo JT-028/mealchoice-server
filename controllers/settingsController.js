@@ -209,7 +209,7 @@ export const exportOrders = async (req, res) => {
 // @access  Private (Seller only)
 export const updateSellerSettings = async (req, res) => {
   try {
-    const { operatingHours, notifyNewOrders, notifyLowStock, acceptsQR, hasOwnDelivery } = req.body;
+    const { operatingHours, notifyNewOrders, notifyLowStock, acceptsQR, hasOwnDelivery, customCategories } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -235,6 +235,7 @@ export const updateSellerSettings = async (req, res) => {
     if (notifyLowStock !== undefined) user.notifyLowStock = notifyLowStock;
     if (acceptsQR !== undefined) user.acceptsQR = acceptsQR;
     if (hasOwnDelivery !== undefined) user.hasOwnDelivery = hasOwnDelivery;
+    if (customCategories !== undefined) user.customCategories = customCategories;
 
     await user.save();
 
@@ -246,7 +247,8 @@ export const updateSellerSettings = async (req, res) => {
         notifyNewOrders: user.notifyNewOrders,
         notifyLowStock: user.notifyLowStock,
         acceptsQR: user.acceptsQR,
-        hasOwnDelivery: user.hasOwnDelivery
+        hasOwnDelivery: user.hasOwnDelivery,
+        customCategories: user.customCategories
       }
     });
   } catch (error) {

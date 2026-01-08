@@ -24,6 +24,13 @@ const mealSchema = new mongoose.Schema({
   estimatedCost: Number,
   ingredients: [String],
   imageUrl: String,
+  instructions: [String],
+  nutrition: {
+    fiber: String,
+    sugar: String,
+    sodium: String,
+  },
+  healthBenefits: [String],
   scheduledDate: {
     type: Date,
     default: null,

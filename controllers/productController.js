@@ -37,7 +37,7 @@ const __dirname = path.dirname(__filename);
 // @access  Private (Seller only)
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price, quantity, unit, category, isAvailable, image, lowStockThreshold } = req.body;
+    const { name, description, price, quantity, unit, category, productType, isAvailable, image, lowStockThreshold } = req.body;
 
     // Use seller's market location from their profile
     const marketLocation = req.user.marketLocation;
@@ -56,6 +56,7 @@ export const createProduct = async (req, res) => {
       quantity,
       unit,
       category,
+      productType,
       seller: req.user._id,
       marketLocation,
       isAvailable,
@@ -208,7 +209,7 @@ export const updateProduct = async (req, res) => {
     // Update fields
     const allowedUpdates = [
       "name", "description", "price", "quantity", "unit",
-      "category", "isAvailable", "image", "lowStockThreshold"
+      "category", "productType", "isAvailable", "image", "lowStockThreshold"
     ];
 
     allowedUpdates.forEach(field => {

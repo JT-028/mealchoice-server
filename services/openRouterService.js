@@ -305,20 +305,30 @@ export const getAIMealPlan = async (userData) => {
         IMPORTANT: Each meal MUST include an "ingredients" array with 3-8 specific ingredients needed to prepare that meal.
         Use simple, common ingredient names (e.g., "chicken breast", "olive oil", "garlic", "rice").
         
+        IMPORTANT: Each meal MUST include "instructions", "nutrition", and "healthBenefits" fields, just like individual recommendations.
+        - "instructions": ["Step 1: ...", "Step 2: ...", "Step 3: ..."]
+        - "nutrition": { "fiber": "g", "sodium": "mg", "sugar": "g" }
+        - "healthBenefits": ["benefit 1", "benefit 2", "benefit 3"]
+        
         Respond ONLY with a valid JSON object in the following format:
         {
             "weekPlan": {
                 "Sunday": { 
-                    "breakfast": { "mealName": "Simple name", "calories": ${breakfastCalories}, "description": "" }, 
-                    "lunch": { "mealName": "Simple name", "calories": ${lunchCalories}, "description": "" }, 
-                    "dinner": { "mealName": "Simple name", "calories": ${dinnerCalories}, "description": "" } 
+                    "breakfast": { 
+                        "mealName": "Simple name", 
+                        "calories": ${breakfastCalories}, 
+                        "description": "",
+                        "macros": { "protein": "g", "carbs": "g", "fats": "g" },
+                        "nutrition": { "fiber": "g", "sodium": "mg", "sugar": "g" },
+                        "ingredients": ["ing 1", "ing 2"],
+                        "instructions": ["Step 1", "Step 2"],
+                        "healthBenefits": ["benefit 1"]
+                    }, 
+                    "lunch": { ... }, 
+                    "dinner": { ... } 
                 },
                 "Monday": { ... },
-                "Tuesday": { ... },
-                "Wednesday": { ... },
-                "Thursday": { ... },
-                "Friday": { ... },
-                "Saturday": { ... }
+                // ... same for all days
             },
             "weeklyMacros": { "avgProtein": "g", "avgCarbs": "g", "avgFats": "g", "avgCalories": ${dailyCalorieTarget} },
             "advice": "General advice for the week"

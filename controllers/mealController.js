@@ -13,7 +13,11 @@ export const getMeals = async (req, res) => {
 };
 
 export const createMeal = async (req, res) => {
-  const { mealName, name, calories, description, macros, estimatedCost, ingredients, imageUrl, scheduledDate, mealType } = req.body;
+  const {
+    mealName, name, calories, description, macros,
+    estimatedCost, ingredients, imageUrl, scheduledDate,
+    mealType, instructions, nutrition, healthBenefits
+  } = req.body;
 
   // Robust field handling
   const finalMealName = mealName || name;
@@ -28,6 +32,9 @@ export const createMeal = async (req, res) => {
     estimatedCost,
     ingredients,
     imageUrl,
+    instructions,
+    nutrition,
+    healthBenefits,
     scheduledDate: scheduledDate || null,
     mealType: mealType || null,
   });

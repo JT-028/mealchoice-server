@@ -3,12 +3,14 @@ import crypto from "crypto";
 import User from "../models/User.js";
 import { sendCustomerVerificationEmail } from "../utils/sendEmail.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-jwt-key-change-in-production";
 const JWT_EXPIRES_IN = "7d";
+
+// Use a getter to ensure JWT_SECRET is read after dotenv.config() has run
+const getJwtSecret = () => process.env.JWT_SECRET || "your-super-secret-jwt-key-change-in-production";
 
 // Generate JWT Token
 const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, JWT_SECRET, {
+  return jwt.sign({ id: userId }, getJwtSecret(), {
     expiresIn: JWT_EXPIRES_IN
   });
 };
@@ -18,7 +20,24 @@ const generateToken = (userId) => {
 // @access  Public
 export const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone } = req.body;
+
+    // Validate phone number is provided
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone number is required"
+      });
+    }
+
+    // Validate Philippine phone format (+639XXXXXXXXX - 10 digits after +63)
+    const phoneRegex = /^\+639\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid Philippine mobile number"
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -33,16 +52,24 @@ export const register = async (req, res) => {
     const verificationToken = crypto.randomBytes(32).toString("hex");
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+    // Generate phone OTP (6-digit code)
+    const phoneOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    const phoneOTPExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
     // Create customer (only customers can self-register, sellers are created by admin)
     const user = await User.create({
       name,
       email,
       password,
+      phone,
       role: "customer",
       isVerified: false,
       isEmailVerified: false,
       emailVerificationToken: verificationToken,
-      emailVerificationExpires: verificationExpires
+      emailVerificationExpires: verificationExpires,
+      phoneVerified: false,
+      phoneVerificationCode: phoneOTP,
+      phoneVerificationExpires: phoneOTPExpires
     });
 
     // Send verification email
@@ -57,10 +84,15 @@ export const register = async (req, res) => {
       // Don't fail registration if email fails
     }
 
+    // TODO: Send SMS with OTP to phone number
+    // For now, we'll log it in development
+    console.log(`[DEV] Phone OTP for ${phone}: ${phoneOTP}`);
+
     res.status(201).json({
       success: true,
       message: "Registration successful! Please check your email to verify your account.",
-      requiresVerification: true
+      requiresVerification: true,
+      requiresPhoneVerification: true
     });
   } catch (error) {
     console.error("Register error:", error);

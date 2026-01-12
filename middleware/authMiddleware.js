@@ -1,7 +1,8 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-jwt-key-change-in-production";
+// Use a getter to ensure JWT_SECRET is read after dotenv.config() has run
+const getJwtSecret = () => process.env.JWT_SECRET || "your-super-secret-jwt-key-change-in-production";
 
 // Protect routes - verify JWT token
 export const protect = async (req, res, next) => {
@@ -21,7 +22,7 @@ export const protect = async (req, res, next) => {
     }
 
     // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
 
     // Get user from token
     const user = await User.findById(decoded.id);
@@ -45,14 +46,14 @@ export const protect = async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Auth middleware error:", error);
-    
+
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({
         success: false,
         message: "Not authorized - Invalid token"
       });
     }
-    
+
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,

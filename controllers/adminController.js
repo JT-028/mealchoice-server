@@ -17,6 +17,12 @@ export const getStats = async (req, res) => {
     const totalOrders = await Order.countDocuments();
     const totalProducts = await Product.countDocuments();
 
+    // Active/Inactive counts
+    const activeSellers = await User.countDocuments({ role: "seller", isActive: true });
+    const inactiveSellers = await User.countDocuments({ role: "seller", isActive: false });
+    const activeCustomers = await User.countDocuments({ role: "customer", isActive: true });
+    const inactiveCustomers = await User.countDocuments({ role: "customer", isActive: false });
+
     // Revenue
     const revenueAgg = await Order.aggregate([
       { $match: { status: { $in: ["completed", "ready"] } } },
@@ -47,6 +53,10 @@ export const getStats = async (req, res) => {
         totalOrders,
         totalProducts,
         totalRevenue,
+        activeSellers,
+        inactiveSellers,
+        activeCustomers,
+        inactiveCustomers,
         sellersByMarket: {
           sanNicolas: sanNicolasSellers,
           pampanga: pampangaSellers
@@ -90,9 +100,9 @@ export const getPendingSellers = async (req, res) => {
 // @access  Private (Admin)
 export const getPendingCustomers = async (req, res) => {
   try {
-    const customers = await User.find({ 
-      role: "customer", 
-      isEmailVerified: false 
+    const customers = await User.find({
+      role: "customer",
+      isEmailVerified: false
     })
       .select("-password")
       .sort({ createdAt: -1 });
@@ -427,22 +437,45 @@ export const rejectSeller = async (req, res) => {
 // @access  Private (Admin)
 export const createSeller = async (req, res) => {
   try {
-    const { name, email, marketLocation, stallName, stallNumber } = req.body;
+    const { name, email, phone, marketLocation, stallName, stallNumber } = req.body;
 
     // Validation
-    if (!name || !email || !marketLocation) {
+    if (!name || !email || !phone || !marketLocation) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, and market location are required"
+        message: "Name, email, phone, and market location are required"
       });
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    // Validate Philippine phone format (+639XXXXXXXXX)
+    const phoneRegex = /^\+639\d{9}$/;
+    if (!phoneRegex.test(phone)) {
       return res.status(400).json({
         success: false,
-        message: "Email already registered"
+        message: "Please enter a valid Philippine mobile number"
+      });
+    }
+
+    // Check if email already exists
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered",
+        errorCode: "DUPLICATE_EMAIL"
+      });
+    }
+
+    // Check if name already exists (case-insensitive)
+    const existingName = await User.findOne({
+      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+      role: "seller"
+    });
+    if (existingName) {
+      return res.status(400).json({
+        success: false,
+        message: "A seller with this name already exists",
+        errorCode: "DUPLICATE_NAME"
       });
     }
 
@@ -457,6 +490,7 @@ export const createSeller = async (req, res) => {
     const seller = await User.create({
       name,
       email,
+      phone,
       password: tempPassword,
       role: "seller",
       marketLocation,
@@ -660,10 +694,19 @@ export const createAdmin = async (req, res) => {
   try {
     const { name, email, phone, password } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !phone) {
       return res.status(400).json({
         success: false,
-        message: "Please provide name, email, and password"
+        message: "Please provide name, email, phone, and password"
+      });
+    }
+
+    // Validate Philippine phone format (+639XXXXXXXXX)
+    const phoneRegex = /^\+639\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid Philippine mobile number"
       });
     }
 
@@ -676,28 +719,47 @@ export const createAdmin = async (req, res) => {
       });
     }
 
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     // Create sub-admin
     const admin = await User.create({
       name,
       email,
-      phone: phone || null,
+      phone,
       password,
       role: "admin",
       isMainAdmin: false,
       isVerified: true,
-      isEmailVerified: true,
+      isEmailVerified: false,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: verificationExpires,
       isActive: true
     });
 
+    // Send verification email
+    try {
+      const { sendAdminVerificationEmail } = await import("../utils/sendEmail.js");
+      await sendAdminVerificationEmail({
+        to: email,
+        name,
+        verificationToken
+      });
+    } catch (emailError) {
+      console.error("Failed to send verification email:", emailError);
+    }
+
     res.status(201).json({
       success: true,
-      message: "Sub-admin account created successfully",
+      message: "Sub-admin account created. Verification email sent.",
       admin: {
         _id: admin._id,
         name: admin.name,
         email: admin.email,
         phone: admin.phone,
-        isMainAdmin: admin.isMainAdmin
+        isMainAdmin: admin.isMainAdmin,
+        isEmailVerified: admin.isEmailVerified
       }
     });
   } catch (error) {
@@ -717,6 +779,7 @@ export const createAdmin = async (req, res) => {
     });
   }
 };
+
 
 // @desc    Update sub-admin account
 // @route   PUT /api/admin/admins/:id
@@ -847,6 +910,115 @@ export const deleteAdmin = async (req, res) => {
   }
 };
 
+// @desc    Deactivate sub-admin account
+// @route   PUT /api/admin/admins/:id/deactivate
+// @access  Private (Admin)
+export const deactivateAdmin = async (req, res) => {
+  try {
+    const admin = await User.findById(req.params.id);
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found"
+      });
+    }
+
+    if (admin.role !== "admin") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not an admin"
+      });
+    }
+
+    // Prevent deactivating main admin
+    const mainAdminEmail = "admin@mealwise.com";
+    if (admin.isMainAdmin || admin.email === mainAdminEmail) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot deactivate the main admin account"
+      });
+    }
+
+    // Prevent self-deactivation
+    if (admin._id.toString() === req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot deactivate your own account"
+      });
+    }
+
+    if (!admin.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin is already deactivated"
+      });
+    }
+
+    admin.isActive = false;
+    admin.deactivatedAt = new Date();
+    admin.deactivatedBy = req.user._id;
+    await admin.save();
+
+    res.json({
+      success: true,
+      message: "Sub-admin account deactivated successfully"
+    });
+  } catch (error) {
+    console.error("Deactivate admin error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error deactivating admin"
+    });
+  }
+};
+
+// @desc    Activate sub-admin account
+// @route   PUT /api/admin/admins/:id/activate
+// @access  Private (Admin)
+export const activateAdmin = async (req, res) => {
+  try {
+    const admin = await User.findById(req.params.id);
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found"
+      });
+    }
+
+    if (admin.role !== "admin") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not an admin"
+      });
+    }
+
+    if (admin.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin is already active"
+      });
+    }
+
+    admin.isActive = true;
+    admin.deactivatedAt = null;
+    admin.deactivatedBy = null;
+    await admin.save();
+
+    res.json({
+      success: true,
+      message: "Sub-admin account activated successfully"
+    });
+  } catch (error) {
+    console.error("Activate admin error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error activating admin"
+    });
+  }
+};
+
 // ==========================================
 // CUSTOMER MANAGEMENT
 // ==========================================
@@ -872,7 +1044,7 @@ export const getAllCustomers = async (req, res) => {
       const searchLower = search.toLowerCase();
       customers = customers.filter(
         c => c.name.toLowerCase().includes(searchLower) ||
-            c.email.toLowerCase().includes(searchLower)
+          c.email.toLowerCase().includes(searchLower)
       );
     }
 

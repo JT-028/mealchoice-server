@@ -149,6 +149,21 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Phone verification
+  phoneVerified: {
+    type: Boolean,
+    default: false
+  },
+  phoneVerificationCode: {
+    type: String,
+    default: null,
+    select: false
+  },
+  phoneVerificationExpires: {
+    type: Date,
+    default: null,
+    select: false
+  },
   // Password change required (for temp passwords)
   mustChangePassword: {
     type: Boolean,

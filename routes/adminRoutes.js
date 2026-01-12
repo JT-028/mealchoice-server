@@ -17,6 +17,8 @@ import {
   createAdmin,
   updateAdmin,
   deleteAdmin,
+  deactivateAdmin,
+  activateAdmin,
   getAllCustomers,
   updateCustomer,
   deleteCustomer,
@@ -67,9 +69,9 @@ router.delete("/customers/:id", deleteCustomer);
 // Admin management
 router.get("/admins", getAdmins);
 router.post("/admins", createAdmin);
+router.put("/admins/:id/deactivate", deactivateAdmin);
+router.put("/admins/:id/activate", activateAdmin);
 router.put("/admins/:id", updateAdmin);
 router.delete("/admins/:id", deleteAdmin);
 
 export default router;
-
-

@@ -39,7 +39,11 @@ const PORT = process.env.PORT || 5000;
 // Socket.io setup with CORS
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "https://mealchoice.duckdns.org",
+      process.env.CLIENT_URL
+    ].filter(Boolean),
     methods: ["GET", "POST"],
     credentials: true
   }

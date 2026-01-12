@@ -294,7 +294,8 @@ export const updateOrderStatus = async (req, res) => {
   try {
     const { status, note } = req.body;
 
-    const validStatuses = ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"];
+    // Simplified status flow: pending -> preparing -> completed
+    const validStatuses = ["pending", "preparing", "completed", "cancelled"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -365,9 +366,9 @@ export const verifyPayment = async (req, res) => {
     }
 
     order.isPaymentVerified = true;
-    order.status = "confirmed";
+    order.status = "preparing";
     order.statusHistory.push({
-      status: "confirmed",
+      status: "preparing",
       timestamp: new Date(),
       note: "Payment verified and order confirmed by seller"
     });

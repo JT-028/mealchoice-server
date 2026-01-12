@@ -280,3 +280,41 @@ export const sendSellerDeactivationEmail = async ({ to, name, adminEmail }) => {
     html,
   });
 };
+
+/**
+ * Send verification email to a sub-admin after account creation
+ */
+export const sendAdminVerificationEmail = async ({ to, name, verificationToken }) => {
+  const verificationLink = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h1 style="color: #4CAF50;">Welcome to MealChoice Admin!</h1>
+      <p>Hi ${name},</p>
+      <p>You have been added as a sub-administrator on MealChoice. Please verify your email address to activate your account.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${verificationLink}" 
+           style="background: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+          Verify Email & Activate Account
+        </a>
+      </div>
+      
+      <p style="color: #666; font-size: 14px;">
+        This verification link will expire in 24 hours.
+      </p>
+      
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      <p style="color: #999; font-size: 12px;">
+        If you didn't expect this email, please contact your administrator.
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to,
+    subject: "Verify Your MealChoice Admin Account",
+    html,
+  });
+};
+

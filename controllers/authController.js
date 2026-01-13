@@ -165,6 +165,15 @@ export const login = async (req, res) => {
       });
     }
 
+    // Check if sub-admin email is verified
+    if (user.role === "admin" && !user.isMainAdmin && user.isEmailVerified === false) {
+      return res.status(401).json({
+        success: false,
+        message: "Your admin account is not verified. Please check your email for the verification link.",
+        requiresVerification: true
+      });
+    }
+
     // Generate token
     const token = generateToken(user._id);
 
@@ -216,6 +225,7 @@ export const getProfile = async (req, res) => {
         marketLocation: user.marketLocation,
         isVerified: user.isVerified,
         hasCompletedOnboarding: user.hasCompletedOnboarding,
+        hasWatchedTutorial: user.hasWatchedTutorial,
         theme: user.theme,
         createdAt: user.createdAt
       }
@@ -311,6 +321,36 @@ export const changePassword = async (req, res) => {
     });
   } catch (error) {
     console.error("Change password error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+// @desc    Mark tutorial as watched
+// @route   PUT /api/auth/tutorial-watched
+// @access  Private
+export const markTutorialWatched = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    user.hasWatchedTutorial = true;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Tutorial marked as watched"
+    });
+  } catch (error) {
+    console.error("Mark tutorial watched error:", error);
     res.status(500).json({
       success: false,
       message: "Server error"

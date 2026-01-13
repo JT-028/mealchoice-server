@@ -664,7 +664,7 @@ export const getAdmins = async (req, res) => {
     );
 
     const admins = await User.find({ role: "admin" })
-      .select("name email phone isMainAdmin isActive createdAt")
+      .select("name email phone isMainAdmin isActive isEmailVerified isVerified createdAt")
       .sort({ isMainAdmin: -1, createdAt: 1 });
 
     // Also check by email in case DB flag not set yet

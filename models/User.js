@@ -174,6 +174,11 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Tutorial video tracking
+  hasWatchedTutorial: {
+    type: Boolean,
+    default: false
+  },
   // Customer preferences (set during onboarding)
   preferences: {
     // Health preferences

@@ -28,7 +28,10 @@ import {
 import {
   exportAdminJSON,
   exportAdminCSV,
-  importAdminJSON
+  importAdminJSON,
+  getBackupSettings,
+  updateBackupSettings,
+  runSelectiveBackup
 } from "../controllers/backupController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
@@ -44,6 +47,11 @@ router.get("/stats", getStats);
 router.get("/backup/json", exportAdminJSON);
 router.get("/backup/csv", exportAdminCSV);
 router.post("/restore", importAdminJSON);
+
+// Backup Settings
+router.get("/backup/settings", getBackupSettings);
+router.put("/backup/settings", updateBackupSettings);
+router.post("/backup/run", runSelectiveBackup);
 
 // Seller management
 router.get("/sellers/pending", getPendingSellers);

@@ -703,6 +703,92 @@ export const getSellerAnalytics = async (req, res) => {
       return found ? { name: m.name, revenue: found.revenue, orders: found.orders } : m;
     });
 
+    // Seller Income Over Time (All sellers across markets for line chart)
+    // Get last 14 days of data per seller
+    const fourteenDaysAgo = new Date(now);
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    const sellerIncomeData = await Order.aggregate([
+      {
+        $match: {
+          status: 'completed',
+          createdAt: { $gte: fourteenDaysAgo }
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'seller',
+          foreignField: '_id',
+          as: 'sellerInfo'
+        }
+      },
+      {
+        $unwind: '$sellerInfo'
+      },
+      {
+        $group: {
+          _id: {
+            sellerId: '$seller',
+            sellerName: '$sellerInfo.name',
+            marketLocation: '$marketLocation',
+            date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }
+          },
+          revenue: { $sum: '$total' }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            sellerId: '$_id.sellerId',
+            sellerName: '$_id.sellerName',
+            marketLocation: '$_id.marketLocation'
+          },
+          dailyRevenue: {
+            $push: {
+              date: '$_id.date',
+              revenue: '$revenue'
+            }
+          },
+          totalRevenue: { $sum: '$revenue' }
+        }
+      },
+      {
+        $sort: { totalRevenue: -1 }
+      },
+      {
+        $limit: 10 // Top 10 sellers
+      }
+    ]);
+
+    // Format seller income over time - create complete 14-day series for each seller
+    const sellerIncomeOverTime = sellerIncomeData.map(seller => {
+      const revenueByDate = {};
+      seller.dailyRevenue.forEach(d => {
+        revenueByDate[d.date] = d.revenue;
+      });
+
+      // Build complete 14-day series
+      const timeSeries = [];
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        timeSeries.push({
+          date: dateStr,
+          revenue: revenueByDate[dateStr] || 0
+        });
+      }
+
+      return {
+        sellerId: seller._id.sellerId,
+        sellerName: seller._id.sellerName,
+        marketLocation: seller._id.marketLocation,
+        totalRevenue: seller.totalRevenue,
+        timeSeries
+      };
+    });
+
     res.json({
       success: true,
       analytics: {
@@ -719,7 +805,8 @@ export const getSellerAnalytics = async (req, res) => {
         statusBreakdown,
         topProducts,
         salesOverTime,
-        marketComparison: marketData
+        marketComparison: marketData,
+        sellerIncomeOverTime
       }
     });
   } catch (error) {

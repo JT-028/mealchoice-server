@@ -208,8 +208,17 @@ io.on("connection", (socket) => {
 // MongoDB Connection
 mongoose
   .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/mealwise")
-  .then(() => {
+  .then(async () => {
     console.log("Connected to MongoDB");
+
+    // Initialize backup scheduler
+    try {
+      const { initBackupScheduler } = await import("./utils/backupScheduler.js");
+      await initBackupScheduler();
+    } catch (err) {
+      console.error("Failed to initialize backup scheduler:", err);
+    }
+
     httpServer.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

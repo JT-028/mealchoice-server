@@ -189,6 +189,7 @@ export const login = async (req, res) => {
         marketLocation: user.marketLocation,
         isVerified: user.isVerified,
         hasCompletedOnboarding: user.hasCompletedOnboarding,
+        hasWatchedTutorial: user.hasWatchedTutorial,
         theme: user.theme
       }
     });

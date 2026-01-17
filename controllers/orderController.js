@@ -537,6 +537,79 @@ export const bulkArchiveOrders = async (req, res) => {
   }
 };
 
+// @desc    Bulk cancel orders (seller)
+// @route   PUT /api/orders/bulk-cancel
+// @access  Private (Seller)
+export const bulkCancelOrders = async (req, res) => {
+  try {
+    const { orderIds } = req.body;
+
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide an array of order IDs"
+      });
+    }
+
+    // Verify all orders belong to this seller
+    const orders = await Order.find({
+      _id: { $in: orderIds },
+      seller: req.user._id
+    });
+
+    if (orders.length !== orderIds.length) {
+      return res.status(403).json({
+        success: false,
+        message: "Some orders were not found or you don't have permission"
+      });
+    }
+
+    // Only cancel orders that are not already completed or cancelled
+    const cancellableOrders = orders.filter(o =>
+      !["completed", "cancelled"].includes(o.status)
+    );
+
+    if (cancellableOrders.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No cancellable orders found. Orders that are completed or already cancelled cannot be cancelled."
+      });
+    }
+
+    // Cancel each order and restore stock
+    for (const order of cancellableOrders) {
+      // Restore stock for each item
+      for (const item of order.items) {
+        const product = await Product.findById(item.product);
+        if (product) {
+          product.quantity += item.quantity;
+          await product.save();
+        }
+      }
+
+      order.status = "cancelled";
+      order.statusHistory.push({
+        status: "cancelled",
+        timestamp: new Date(),
+        note: "Cancelled by seller"
+      });
+      await order.save();
+    }
+
+    res.json({
+      success: true,
+      message: `${cancellableOrders.length} order(s) cancelled successfully`,
+      count: cancellableOrders.length
+    });
+  } catch (error) {
+    console.error("Bulk cancel error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during bulk cancel"
+    });
+  }
+};
+
 // @desc    Get seller analytics data
 // @route   GET /api/orders/seller/analytics
 // @access  Private (Seller)

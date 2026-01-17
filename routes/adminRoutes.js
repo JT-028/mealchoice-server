@@ -26,6 +26,12 @@ import {
   activateCustomer
 } from "../controllers/adminController.js";
 import {
+  getSellerRequests,
+  approveSellerRequest,
+  rejectSellerRequest,
+  deleteSellerRequest
+} from "../controllers/sellerRequestController.js";
+import {
   exportAdminJSON,
   exportAdminCSV,
   importAdminJSON,
@@ -52,6 +58,12 @@ router.post("/restore", importAdminJSON);
 router.get("/backup/settings", getBackupSettings);
 router.put("/backup/settings", updateBackupSettings);
 router.post("/backup/run", runSelectiveBackup);
+
+// Seller Requests
+router.get("/seller-requests", getSellerRequests);
+router.post("/seller-requests/:id/approve", approveSellerRequest);
+router.delete("/seller-requests/:id/reject", rejectSellerRequest);
+router.delete("/seller-requests/:id", deleteSellerRequest);
 
 // Seller management
 router.get("/sellers/pending", getPendingSellers);

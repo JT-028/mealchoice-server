@@ -8,6 +8,7 @@ import {
   verifyPayment,
   archiveOrder,
   bulkArchiveOrders,
+  bulkCancelOrders,
   getSellerAnalytics,
   cancelOrderByCustomer,
   hideOrderForBuyer,
@@ -30,6 +31,7 @@ router.put("/:id/hide-buyer", protect, authorize("customer"), hideOrderForBuyer)
 router.get("/seller", protect, authorize("seller"), getSellerOrders);
 router.get("/seller/analytics", protect, authorize("seller"), getSellerAnalytics);
 router.put("/bulk-archive", protect, authorize("seller"), bulkArchiveOrders);
+router.put("/bulk-cancel", protect, authorize("seller"), bulkCancelOrders);
 router.put("/:id/status", protect, authorize("seller"), updateOrderStatus);
 router.put("/:id/payment", protect, authorize("seller"), verifyPayment);
 router.put("/:id/archive", protect, authorize("seller"), archiveOrder);

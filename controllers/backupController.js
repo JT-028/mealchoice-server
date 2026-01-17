@@ -3,19 +3,22 @@ import Budget from "../models/Budget.js";
 import Meal from "../models/Meal.js";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
+import BackupSettings from "../models/BackupSettings.js";
+import fs from "fs";
+import path from "path";
 
 // Helper: Convert array of objects to CSV string
 const arrayToCSV = (data, prefix = "") => {
   if (!data || data.length === 0) return "";
-  
-  const headers = Object.keys(data[0]).filter(key => 
+
+  const headers = Object.keys(data[0]).filter(key =>
     typeof data[0][key] !== 'object' || data[0][key] === null
   );
-  
+
   const csvRows = [
     `--- ${prefix} ---`,
     headers.join(","),
-    ...data.map(row => 
+    ...data.map(row =>
       headers.map(header => {
         const value = row[header];
         if (value === null || value === undefined) return "";
@@ -77,7 +80,7 @@ export const exportJSON = async (req, res) => {
       // Customer-specific data
       backupData.preferences = user.preferences || {};
       backupData.savedAddresses = user.savedAddresses || [];
-      
+
       // Get budget
       const budget = await Budget.findOne({ user: userId }).lean();
       backupData.budget = budget ? {
@@ -327,8 +330,8 @@ export const importJSON = async (req, res) => {
     }
 
     if (backupData.role !== userRole) {
-      return res.status(400).json({ 
-        message: `Cannot restore ${backupData.role} backup to ${userRole} account` 
+      return res.status(400).json({
+        message: `Cannot restore ${backupData.role} backup to ${userRole} account`
       });
     }
 
@@ -374,11 +377,11 @@ export const importJSON = async (req, res) => {
         try {
           const existingMeals = await Meal.find({ user: userId }).lean();
           const existingNames = new Set(existingMeals.map(m => m.mealName || m.name));
-          
+
           const newMeals = backupData.savedMeals
             .filter(m => !existingNames.has(m.mealName))
             .map(m => ({ ...m, user: userId }));
-          
+
           if (newMeals.length > 0) {
             await Meal.insertMany(newMeals);
           }
@@ -392,7 +395,7 @@ export const importJSON = async (req, res) => {
       // Restore store settings
       if (backupData.operatingHours) {
         try {
-          await User.findByIdAndUpdate(userId, { 
+          await User.findByIdAndUpdate(userId, {
             operatingHours: backupData.operatingHours,
             customCategories: backupData.customCategories || []
           });
@@ -420,15 +423,15 @@ export const importJSON = async (req, res) => {
         try {
           const existingProducts = await Product.find({ seller: userId }).lean();
           const existingNames = new Set(existingProducts.map(p => p.name.toLowerCase()));
-          
+
           const newProducts = backupData.products
             .filter(p => !existingNames.has(p.name.toLowerCase()))
-            .map(p => ({ 
-              ...p, 
+            .map(p => ({
+              ...p,
               seller: userId,
               marketLocation: req.user.marketLocation || backupData.storeInfo?.marketLocation
             }));
-          
+
           if (newProducts.length > 0) {
             await Product.insertMany(newProducts);
           }
@@ -460,19 +463,19 @@ export const exportAdminJSON = async (req, res) => {
   try {
     // Get all users (excluding passwords)
     const users = await User.find({}).select("-password -emailVerificationToken").lean();
-    
+
     // Get all products
     const products = await Product.find({}).lean();
-    
+
     // Get all orders
     const orders = await Order.find({})
       .populate("buyer", "name email")
       .populate("seller", "name email stallName")
       .lean();
-    
+
     // Get all budgets
     const budgets = await Budget.find({}).lean();
-    
+
     // Get all meals
     const meals = await Meal.find({}).lean();
 
@@ -651,12 +654,12 @@ export const importAdminJSON = async (req, res) => {
       try {
         // Get all unique seller IDs from backup
         const sellerIds = [...new Set(backupData.data.products.map(p => p.seller?.toString()).filter(Boolean))];
-        
+
         // Delete all products from sellers in the backup (to allow deleted products to reappear)
         if (sellerIds.length > 0) {
           await Product.deleteMany({ seller: { $in: sellerIds } });
         }
-        
+
         // Insert all products from backup
         const productsToInsert = backupData.data.products.map(p => ({
           _id: p._id,
@@ -674,7 +677,7 @@ export const importAdminJSON = async (req, res) => {
           createdAt: p.createdAt,
           updatedAt: p.updatedAt
         }));
-        
+
         await Product.insertMany(productsToInsert, { ordered: false });
         results.restored.push(`products (${productsToInsert.length} restored)`);
       } catch (e) {
@@ -688,12 +691,12 @@ export const importAdminJSON = async (req, res) => {
       try {
         // Get all user IDs from backup budgets
         const userIds = [...new Set(backupData.data.budgets.map(b => b.user?.toString()).filter(Boolean))];
-        
+
         // Delete existing budgets for these users
         if (userIds.length > 0) {
           await Budget.deleteMany({ user: { $in: userIds } });
         }
-        
+
         // Insert all budgets from backup
         const budgetsToInsert = backupData.data.budgets.map(b => ({
           _id: b._id,
@@ -703,7 +706,7 @@ export const importAdminJSON = async (req, res) => {
           alertThreshold: b.alertThreshold,
           currency: b.currency
         }));
-        
+
         await Budget.insertMany(budgetsToInsert, { ordered: false });
         results.restored.push(`budgets (${budgetsToInsert.length} restored)`);
       } catch (e) {
@@ -717,12 +720,12 @@ export const importAdminJSON = async (req, res) => {
       try {
         // Get all user IDs from backup meals
         const userIds = [...new Set(backupData.data.meals.map(m => m.user?.toString()).filter(Boolean))];
-        
+
         // Delete existing meals for these users
         if (userIds.length > 0) {
           await Meal.deleteMany({ user: { $in: userIds } });
         }
-        
+
         // Insert all meals from backup
         const mealsToInsert = backupData.data.meals.map(m => ({
           _id: m._id,
@@ -737,7 +740,7 @@ export const importAdminJSON = async (req, res) => {
           createdAt: m.createdAt,
           updatedAt: m.updatedAt
         }));
-        
+
         await Meal.insertMany(mealsToInsert, { ordered: false });
         results.restored.push(`meals (${mealsToInsert.length} restored)`);
       } catch (e) {
@@ -751,7 +754,7 @@ export const importAdminJSON = async (req, res) => {
       try {
         // Delete all existing orders
         await Order.deleteMany({});
-        
+
         // Insert all orders from backup
         const ordersToInsert = backupData.data.orders.map(o => ({
           _id: o._id,
@@ -770,7 +773,7 @@ export const importAdminJSON = async (req, res) => {
           createdAt: o.createdAt,
           updatedAt: o.updatedAt
         }));
-        
+
         await Order.insertMany(ordersToInsert, { ordered: false });
         results.restored.push(`orders (${ordersToInsert.length} restored)`);
       } catch (e) {
@@ -822,5 +825,181 @@ export const importAdminJSON = async (req, res) => {
   } catch (error) {
     console.error("Admin import JSON error:", error);
     res.status(500).json({ message: "Error restoring database" });
+  }
+};
+
+// ============================================
+// BACKUP SETTINGS & SCHEDULING
+// ============================================
+
+// GET /api/admin/backup/settings - Get backup settings
+export const getBackupSettings = async (req, res) => {
+  try {
+    const settings = await BackupSettings.getSettings();
+    res.json({
+      success: true,
+      settings: {
+        autoBackupEnabled: settings.autoBackupEnabled,
+        schedule: settings.schedule,
+        selectedCollections: settings.selectedCollections,
+        lastBackupAt: settings.lastBackupAt,
+        lastBackupStatus: settings.lastBackupStatus,
+        lastBackupMessage: settings.lastBackupMessage,
+        retentionDays: settings.retentionDays
+      }
+    });
+  } catch (error) {
+    console.error("Get backup settings error:", error);
+    res.status(500).json({ message: "Error fetching backup settings" });
+  }
+};
+
+// PUT /api/admin/backup/settings - Update backup settings
+export const updateBackupSettings = async (req, res) => {
+  try {
+    const { autoBackupEnabled, schedule, selectedCollections, retentionDays } = req.body;
+
+    const settings = await BackupSettings.getSettings();
+
+    if (autoBackupEnabled !== undefined) {
+      settings.autoBackupEnabled = autoBackupEnabled;
+    }
+
+    if (schedule) {
+      if (schedule.frequency) settings.schedule.frequency = schedule.frequency;
+      if (schedule.time) settings.schedule.time = schedule.time;
+      if (schedule.dayOfWeek !== undefined) settings.schedule.dayOfWeek = schedule.dayOfWeek;
+      if (schedule.dayOfMonth !== undefined) settings.schedule.dayOfMonth = schedule.dayOfMonth;
+    }
+
+    if (selectedCollections && Array.isArray(selectedCollections)) {
+      settings.selectedCollections = selectedCollections;
+    }
+
+    if (retentionDays !== undefined) {
+      settings.retentionDays = retentionDays;
+    }
+
+    await settings.save();
+
+    res.json({
+      success: true,
+      message: "Backup settings updated",
+      settings: {
+        autoBackupEnabled: settings.autoBackupEnabled,
+        schedule: settings.schedule,
+        selectedCollections: settings.selectedCollections,
+        retentionDays: settings.retentionDays
+      }
+    });
+  } catch (error) {
+    console.error("Update backup settings error:", error);
+    res.status(500).json({ message: "Error updating backup settings" });
+  }
+};
+
+// POST /api/admin/backup/run - Run a backup with selected collections
+export const runSelectiveBackup = async (req, res) => {
+  try {
+    const { collections } = req.body;
+    const settings = await BackupSettings.getSettings();
+
+    // Use provided collections or fall back to settings
+    const collectionsToBackup = collections || settings.selectedCollections;
+
+    const backupData = {
+      exportDate: new Date().toISOString(),
+      version: "1.0",
+      type: "admin_selective_backup",
+      collections: collectionsToBackup,
+      stats: {},
+      data: {}
+    };
+
+    // Backup each selected collection
+    if (collectionsToBackup.includes('users')) {
+      const users = await User.find({}).select("-password -emailVerificationToken").lean();
+      backupData.data.users = users.map(u => ({
+        _id: u._id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        marketLocation: u.marketLocation,
+        stallName: u.stallName,
+        stallNumber: u.stallNumber,
+        customCategories: u.customCategories,
+        operatingHours: u.operatingHours,
+        paymentQR: u.paymentQR,
+        notifyNewOrders: u.notifyNewOrders,
+        notifyLowStock: u.notifyLowStock,
+        theme: u.theme,
+        savedAddresses: u.savedAddresses,
+        isActive: u.isActive,
+        isMainAdmin: u.isMainAdmin,
+        isVerified: u.isVerified,
+        isEmailVerified: u.isEmailVerified,
+        hasCompletedOnboarding: u.hasCompletedOnboarding,
+        preferences: u.preferences,
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt
+      }));
+      backupData.stats.totalUsers = users.length;
+    }
+
+    if (collectionsToBackup.includes('products')) {
+      const products = await Product.find({}).lean();
+      backupData.data.products = products;
+      backupData.stats.totalProducts = products.length;
+    }
+
+    if (collectionsToBackup.includes('orders')) {
+      const orders = await Order.find({})
+        .populate("buyer", "name email")
+        .populate("seller", "name email stallName")
+        .lean();
+      backupData.data.orders = orders;
+      backupData.stats.totalOrders = orders.length;
+    }
+
+    if (collectionsToBackup.includes('budgets')) {
+      const budgets = await Budget.find({}).lean();
+      backupData.data.budgets = budgets;
+      backupData.stats.totalBudgets = budgets.length;
+    }
+
+    if (collectionsToBackup.includes('meals')) {
+      const meals = await Meal.find({}).lean();
+      backupData.data.meals = meals;
+      backupData.stats.totalMeals = meals.length;
+    }
+
+    // Update last backup info
+    settings.lastBackupAt = new Date();
+    settings.lastBackupStatus = 'success';
+    settings.lastBackupMessage = `Backed up ${collectionsToBackup.length} collections`;
+    await settings.save();
+
+    // Return backup as download
+    const filename = `mealwise-backup-${new Date().toISOString().split("T")[0]}.json`;
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Type", "application/json");
+    res.json(backupData);
+
+  } catch (error) {
+    console.error("Run selective backup error:", error);
+
+    // Update failure status
+    try {
+      const settings = await BackupSettings.getSettings();
+      settings.lastBackupAt = new Date();
+      settings.lastBackupStatus = 'failed';
+      settings.lastBackupMessage = error.message;
+      await settings.save();
+    } catch (e) {
+      console.error("Failed to update backup status:", e);
+    }
+
+    res.status(500).json({ message: "Error running backup" });
   }
 };

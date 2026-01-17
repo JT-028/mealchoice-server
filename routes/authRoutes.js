@@ -1,5 +1,5 @@
 import express from "express";
-import { register, login, getProfile, verifyEmail, changePassword, markTutorialWatched } from "../controllers/authController.js";
+import { register, login, getProfile, verifyEmail, changePassword, markTutorialWatched, forgotPassword, resetPassword } from "../controllers/authController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -8,6 +8,8 @@ const router = express.Router();
 router.post("/register", register);
 router.post("/login", login);
 router.get("/verify/:token", verifyEmail);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password/:token", resetPassword);
 
 // Protected routes
 router.get("/profile", protect, getProfile);
@@ -15,3 +17,4 @@ router.put("/change-password", protect, changePassword);
 router.put("/tutorial-watched", protect, markTutorialWatched);
 
 export default router;
+

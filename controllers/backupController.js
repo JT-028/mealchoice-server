@@ -782,33 +782,77 @@ export const importAdminJSON = async (req, res) => {
       }
     }
 
-    // Restore Users (update existing, create new - but preserve passwords)
+    // Restore Users (update existing, CREATE NEW for deleted ones - but preserve passwords for existing)
     if (backupData.data?.users && backupData.data.users.length > 0) {
       try {
         let updatedCount = 0;
+        let createdCount = 0;
+
         for (const userData of backupData.data.users) {
-          // Update user data but preserve password and security fields
-          await User.findByIdAndUpdate(
-            userData._id,
-            {
+          // Check if user exists
+          const existingUser = await User.findById(userData._id);
+
+          if (existingUser) {
+            // Update user data but preserve password and security fields
+            await User.findByIdAndUpdate(
+              userData._id,
+              {
+                name: userData.name,
+                phone: userData.phone,
+                theme: userData.theme,
+                savedAddresses: userData.savedAddresses,
+                preferences: userData.preferences,
+                operatingHours: userData.operatingHours,
+                customCategories: userData.customCategories,
+                notifyNewOrders: userData.notifyNewOrders,
+                notifyLowStock: userData.notifyLowStock,
+                isActive: userData.isActive,
+                isVerified: userData.isVerified,
+                hasCompletedOnboarding: userData.hasCompletedOnboarding
+              },
+              { new: true }
+            );
+            updatedCount++;
+          } else {
+            // User was deleted - recreate them from backup
+            // Note: They will need to reset their password since we don't store passwords in backups
+            const newUser = new User({
+              _id: userData._id,
               name: userData.name,
+              email: userData.email,
               phone: userData.phone,
+              role: userData.role,
+              marketLocation: userData.marketLocation,
+              stallName: userData.stallName,
+              stallNumber: userData.stallNumber,
               theme: userData.theme,
               savedAddresses: userData.savedAddresses,
               preferences: userData.preferences,
               operatingHours: userData.operatingHours,
               customCategories: userData.customCategories,
+              paymentQR: userData.paymentQR,
               notifyNewOrders: userData.notifyNewOrders,
               notifyLowStock: userData.notifyLowStock,
               isActive: userData.isActive,
+              isMainAdmin: userData.isMainAdmin,
               isVerified: userData.isVerified,
-              hasCompletedOnboarding: userData.hasCompletedOnboarding
-            },
-            { new: true }
-          );
-          updatedCount++;
+              isEmailVerified: userData.isEmailVerified,
+              hasCompletedOnboarding: userData.hasCompletedOnboarding,
+              // Set a temporary password that must be changed
+              password: 'TempPassword123!',
+              mustChangePassword: true,
+              createdAt: userData.createdAt,
+              updatedAt: userData.updatedAt
+            });
+            await newUser.save();
+            createdCount++;
+          }
         }
-        results.restored.push(`users (${updatedCount} updated)`);
+
+        const resultMsg = [];
+        if (updatedCount > 0) resultMsg.push(`${updatedCount} updated`);
+        if (createdCount > 0) resultMsg.push(`${createdCount} restored`);
+        results.restored.push(`users (${resultMsg.join(', ')})`);
       } catch (e) {
         console.error("Error restoring users:", e);
         results.errors.push("users");

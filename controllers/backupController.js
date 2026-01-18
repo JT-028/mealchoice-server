@@ -643,9 +643,11 @@ export const importAdminJSON = async (req, res) => {
     const backupData = req.body;
 
     // Validate backup data
-    if (!backupData || !backupData.version || backupData.type !== "admin_full_backup") {
+    const allowedTypes = new Set(["admin_full_backup", "admin_selective_backup"]);
+    if (!backupData || !backupData.version || !allowedTypes.has(backupData.type)) {
       return res.status(400).json({ message: "Invalid admin backup file format" });
     }
+
 
     const results = { restored: [], errors: [], skipped: [] };
 

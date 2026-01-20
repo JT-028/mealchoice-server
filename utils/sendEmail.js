@@ -16,6 +16,9 @@ const getTransporter = () => {
         user: process.env.SMTP_EMAIL,
         pass: process.env.SMTP_PASSWORD,
       },
+      tls: {
+        rejectUnauthorized: false
+      }
     });
 
     console.log("SMTP transporter created for:", process.env.SMTP_EMAIL);

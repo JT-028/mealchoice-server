@@ -21,9 +21,22 @@ async function seedAdmin() {
 
     // Check if admin exists
     const existingAdmin = await usersCollection.findOne({ email: ADMIN_EMAIL });
-    
+
     if (existingAdmin) {
-      console.log("Admin account already exists!");
+      console.log("Admin account already exists! Updating flags...");
+      await usersCollection.updateOne(
+        { email: ADMIN_EMAIL },
+        {
+          $set: {
+            isEmailVerified: true,
+            isVerified: true,
+            isMainAdmin: true,
+            phoneVerified: true,
+            isActive: true
+          }
+        }
+      );
+      console.log(`✅ Admin account updated successfully!`);
       console.log(`Email: ${ADMIN_EMAIL}`);
     } else {
       // Hash password
@@ -38,6 +51,9 @@ async function seedAdmin() {
         role: "admin",
         isActive: true,
         isVerified: true,
+        isEmailVerified: true,
+        isMainAdmin: true,
+        phoneVerified: true,
         createdAt: new Date(),
         updatedAt: new Date()
       });

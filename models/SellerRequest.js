@@ -65,8 +65,7 @@ const sellerRequestSchema = new mongoose.Schema(
     }
 );
 
-// Ensure email is unique among requests
-sellerRequestSchema.index({ email: 1 }, { unique: true });
+// Email is already indexed via unique: true in the field definition
 
 const SellerRequest = mongoose.model("SellerRequest", sellerRequestSchema);
 

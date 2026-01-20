@@ -99,6 +99,11 @@ const orderSchema = new mongoose.Schema({
     postalCode: { type: String, default: null },
     contactPhone: { type: String, default: null },
     deliveryNotes: { type: String, default: null }
+  },
+  deliveryFee: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 }, {
   timestamps: true

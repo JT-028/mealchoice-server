@@ -127,11 +127,23 @@ export const createOrder = async (req, res) => {
     for (const sellerId in ordersBySeller) {
       const orderData = ordersBySeller[sellerId];
 
+      // Calculate delivery fee based on city
+      let deliveryFee = 0;
+      if (deliveryType === 'delivery' && deliveryAddress?.city) {
+        // Check if city is Angeles City (case-insensitive)
+        const city = deliveryAddress.city.toLowerCase();
+        if (city.includes('angeles')) {
+          deliveryFee = 25; // ₱25 for Angeles City
+        } else {
+          deliveryFee = 50; // ₱50 for outside Angeles City
+        }
+      }
+
       const order = await Order.create({
         buyer: req.user._id,
         seller: orderData.seller,
         items: orderData.items,
-        total: orderData.total,
+        total: orderData.total + deliveryFee, // Include delivery fee in total
         marketLocation: orderData.marketLocation,
         notes,
         paymentMethod: paymentMethods[sellerId] || 'qr',
@@ -145,7 +157,8 @@ export const createOrder = async (req, res) => {
           postalCode: deliveryAddress.postalCode,
           contactPhone: deliveryAddress.contactPhone,
           deliveryNotes: deliveryAddress.deliveryNotes
-        } : null
+        } : null,
+        deliveryFee: deliveryFee
       });
 
       createdOrders.push(order);
